@@ -2,12 +2,12 @@
 
 angular.module('gameApp').factory('Gamecore', function () {
 
+    var keyboard;
 
     var createGame = function() {
-        console.log("instance of gamecore created");
-        var game = new game_core(window.socket);
-
-        // window.game = game;
+        
+        keyboard = new THREEx.KeyboardState();
+        var game = new game_core(window.socket, undefined, keyboard);
 
         //Fetch the viewport
         game.viewport = document.getElementById('viewport');
@@ -39,6 +39,9 @@ angular.module('gameApp').factory('Gamecore', function () {
             return game.playerself;
         },
         resetGame: function () {
+            if (keyboard) {
+                keyboard.destroy();
+            }
             game = createGame();
         }
     };

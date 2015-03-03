@@ -14,12 +14,11 @@ angular.module('gameApp.gameplay', ['ngRoute'])
     $scope.socket = window.socket;
 
     $scope.$on('$locationChangeStart', function( event ) {
-        // gamecore.resetGame();
         $scope.socket.send('q');
     });
 
     $scope.createGameCore = function() {
-        // gamecore.resetGame();
+        gamecore.resetGame();
         var playerself = gamecore.getPlayerSelf(); // todo remove this stuff
         playerself.userid = currentGame.getUserId();
         playerself.info_color = '#cc0000';

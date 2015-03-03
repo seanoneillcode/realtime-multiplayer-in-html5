@@ -16,34 +16,6 @@
     // requestAnimationFrame polyfill by Erik Möller
     // fixes from Paul Irish and Tino Zijdel
 
-var frame_time = 60/1000; // run the local game at 16ms/ 60hz
-if('undefined' != typeof(global)) frame_time = 45; //on server we run at 45ms, 22hz
-
-( function () {
-
-    var lastTime = 0;
-    var vendors = [ 'ms', 'moz', 'webkit', 'o' ];
-
-    for ( var x = 0; x < vendors.length && !window.requestAnimationFrame; ++ x ) {
-        window.requestAnimationFrame = window[ vendors[ x ] + 'RequestAnimationFrame' ];
-        window.cancelAnimationFrame = window[ vendors[ x ] + 'CancelAnimationFrame' ] || window[ vendors[ x ] + 'CancelRequestAnimationFrame' ];
-    }
-
-    if ( !window.requestAnimationFrame ) {
-        window.requestAnimationFrame = function ( callback, element ) {
-            var currTime = Date.now(), timeToCall = Math.max( 0, frame_time - ( currTime - lastTime ) );
-            var id = window.setTimeout( function() { callback( currTime + timeToCall ); }, timeToCall );
-            lastTime = currTime + timeToCall;
-            return id;
-        };
-    }
-
-    if ( !window.cancelAnimationFrame ) {
-        window.cancelAnimationFrame = function ( id ) { clearTimeout( id ); };
-    }
-
-}() );
-
         //Now the main game class. This gets created on
         //both server and client. Server creates one for
         //each game that is hosted, and client creates one
@@ -51,7 +23,7 @@ if('undefined' != typeof(global)) frame_time = 45; //on server we run at 45ms, 2
 
 /* The game_core class */
 
-    var game_core = function(socket, players) {
+    var game_core = function(socket, players, keyboard) {
 
         console.log("socket ", socket);
         this.isServer = players !== undefined;
@@ -143,7 +115,7 @@ if('undefined' != typeof(global)) frame_time = 45; //on server we run at 45ms, 2
         if(!this.isServer) {
             
                 //Create a keyboard handler
-            this.keyboard = new THREEx.KeyboardState();
+            this.keyboard = keyboard;
 
                 //Create the default configuration settings
             this.client_create_configuration();
