@@ -15,7 +15,6 @@ angular.module('gameApp.lobby', ['ngRoute'])
     $scope.userid = currentGame.getUserId();
 
     $scope.socket.on('ongamelist', function (message) {
-        console.log("GOT GAME LIST, UPDATING");
         $scope.$apply(function() {
             $scope.games = message ? message : [];
         });
@@ -23,14 +22,12 @@ angular.module('gameApp.lobby', ['ngRoute'])
 
     $scope.createGame = function() {
         $scope.socket.send('c');
-        console.log("creating a game and auto joining it");
         $location.path('/gameplay');
     };
+    
     $scope.getGamesList = function() {
-        console.log("GET GAME LIST");
         if (currentGame.getUserId() === '') {
             $scope.socket.on('onconnected', function(data) {
-                console.log("oncennected received! data = ", data.userid);
                 $scope.$apply(function() {
                     $scope.userid = data.userid;
                     currentGame.setUserId(data.userid);
@@ -39,8 +36,8 @@ angular.module('gameApp.lobby', ['ngRoute'])
         }
         $scope.socket.send('l');
     };
+
     $scope.joinGame = function(game) {
-        console.log("joining game id to ", game.id);
         currentGame.setGameId(game.id);
         $location.path('/gameplay');
     };

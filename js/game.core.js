@@ -25,7 +25,6 @@
 
     var game_core = function(socket, players, keyboard) {
 
-        console.log("socket ", socket);
         this.isServer = players !== undefined;
 
         this.world = {
@@ -1219,7 +1218,6 @@ game_core.prototype.client_onaddplayer = function(userid, name) {
     var playerHolder = {};
     playerHolder.userid = userid;
     playerHolder.name = name === "undefined" ? 'anon' : name;
-    console.log("playerHolder ", playerHolder);
     playerHolder.emit = function() {
         console.log("this shouldn't be called i think, emit");
     };
@@ -1252,8 +1250,6 @@ game_core.prototype.client_ondisconnect = function(data) {
 game_core.prototype.client_connect_to_server = function() {
         
             //Store a local reference to our connection to the server
-        console.log("socket ", socket);
-        console.log("trying connecting to server");
             //When we connect, we are not 'connected' until we have a server id
             //and are placed in a game by the server. The server sends us a message for that.
         // this.socket.on('connect', function(){
