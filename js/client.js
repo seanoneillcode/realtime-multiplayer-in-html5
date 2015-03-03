@@ -6,34 +6,32 @@
     MIT Licensed.
 */
 
-	//A window global for our game root variable.
-//var game = {};
 var socket = io.connect();
 
-	//When loading, we store references to our
-	//drawing canvases, and initiate a game instance.
-// window.onload = function(){
+var frame_time = 60/1000; // run the local game at 16ms/ 60hz
+if('undefined' != typeof(global)) frame_time = 45; //on server we run at 45ms, 22hz
 
-		//Create our game client instance.
-	// socket = io.connect();
-	// game = new game_core(undefined, socket);
+( function () {
 
-	
+    var lastTime = 0;
+    var vendors = [ 'ms', 'moz', 'webkit', 'o' ];
 
-	// 	//Fetch the viewport
-	// game.viewport = document.getElementById('viewport');
-		
-	// 	//Adjust their size
-	// game.viewport.width = game.world.width;
-	// game.viewport.height = game.world.height;
+    for ( var x = 0; x < vendors.length && !window.requestAnimationFrame; ++ x ) {
+        window.requestAnimationFrame = window[ vendors[ x ] + 'RequestAnimationFrame' ];
+        window.cancelAnimationFrame = window[ vendors[ x ] + 'CancelAnimationFrame' ] || window[ vendors[ x ] + 'CancelRequestAnimationFrame' ];
+    }
 
-	// 	//Fetch the rendering contexts
-	// game.ctx = game.viewport.getContext('2d');
+    if ( !window.requestAnimationFrame ) {
+        window.requestAnimationFrame = function ( callback, element ) {
+            var currTime = Date.now(), timeToCall = Math.max( 0, frame_time - ( currTime - lastTime ) );
+            var id = window.setTimeout( function() { callback( currTime + timeToCall ); }, timeToCall );
+            lastTime = currTime + timeToCall;
+            return id;
+        };
+    }
 
-	// 	//Set the draw style for the font
-	// game.ctx.font = '11px "Helvetica"';
+    if ( !window.cancelAnimationFrame ) {
+        window.cancelAnimationFrame = function ( id ) { clearTimeout( id ); };
+    }
 
-	// 	//Finally, start the loop
-	// game.update( new Date().getTime() );
-
-// }; //window.onload
+}() );
