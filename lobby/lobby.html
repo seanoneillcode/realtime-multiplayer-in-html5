@@ -1,3 +1,7 @@
+<div class="title">
+    Real time multiplayer game in HTML5
+</div>
+
 <div id="name" ng-controller="NameController">
     <div class="entry">
         <div class="generic-label generic-item">Player Name</div>
@@ -24,7 +28,7 @@
 
     <div class="or-breaker"> OR </div>
     <div class="generic-lobby-entry" ng-repeat="game in games">
-        <div class="generic-item generic-label big-generic">{{game.id}} : {{game.currentPlayers}}/{{game.maxPlayers}}</div>
+        <div class="generic-item generic-label big-generic">{{game.name}} : {{game.currentPlayers}}/{{game.maxNumPlayers}}</div>
         <button class="generic-item generic-button" ng-click="joinGame(game)">Join</button>
     </div>
 </div>

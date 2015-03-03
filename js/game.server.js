@@ -32,7 +32,7 @@
     game_server._dte = new Date().getTime();
         //a local queue of messages we delay if faking latency
     game_server.messages = [];
-    game_server.num_players = 2;
+    game_server.defaultNumPlayers = 2;
     game_server.lobbyListeners = [];
 
     setInterval(function() {
@@ -78,7 +78,7 @@
         } else if(message_type == 'b') {    //Client changed their color!
             this.broadcastPlayerData(client, message_parts[1], message_parts[2]);
         } else if(message_type == 'c') {    //make a new game
-            this.makeGameAndJoinIt(client);
+            this.makeGameAndJoinIt(client, message_parts[1], message_parts[2]);
         } else if(message_type == 'q') {    //make a new game
             this.removePlayerFromGame(client);
         } else if(message_type == 'j') {    //go into new game
@@ -123,7 +123,7 @@
 
     game_server.getAndjoinGame = function(client, gameid) {
         var game = this.games[gameid];
-        if (game && game.players.length < this.num_players) {
+        if (game && game.players.length < game.maxNumPlayers) {
             console.log("joining game ");
             var player = game.serverGamecore.get_player(game.serverGamecore.players, client.userid);
             if (!player) {
@@ -142,11 +142,12 @@
             if(!this.games.hasOwnProperty(gameid)) continue;
                 //get the game we are checking against
             var game_instance = this.games[gameid];
-            if (game_instance.players.length < this.num_players) {
+            if (game_instance.players.length < game_instance.maxNumPlayers) {
                 openGames.push({
                     id: game_instance.id,
+                    name: game_instance.name,
                     currentPlayers: game_instance.players.length,
-                    maxPlayers: self.num_players
+                    maxNumPlayers: game_instance.maxNumPlayers
                 });
             }
         }
@@ -159,8 +160,8 @@
         client.emit('ongamelist', openGames);
     };
 
-    game_server.makeGameAndJoinIt = function(client) {
-        this.createGame(client);
+    game_server.makeGameAndJoinIt = function(client, name, numPlayers) {
+        this.createGame(client, name, numPlayers);
     };
 
     game_server.broadcastPlayerData = function(client, name, color) {
@@ -195,8 +196,18 @@
 
     }; //game_server.onInput
 
+    // http://stackoverflow.com/questions/14636536/how-to-check-if-a-variable-is-an-integer-in-javascript
+    game_server.isInt = function (value) {
+        return !isNaN(value) && (function(x) { return (x | 0) === x; })(value);
+    };
+
     // create the game
-    game_server.createGame = function(client) {
+    game_server.createGame = function(client, gameName, numPlayers) {
+
+        var actualNumPlayers = parseFloat(numPlayers);
+        if (!this.isInt(actualNumPlayers)) {
+            actualNumPlayers = this.defaultNumPlayers;
+        }
 
         var gamePlayers = [];
 
@@ -205,7 +216,9 @@
 
         var game = {
                 id : UUID(),
+                name: gameName,
                 players: gamePlayers,
+                maxNumPlayers: actualNumPlayers,
                 serverGamecore: undefined
             };
 
@@ -263,22 +276,22 @@
             //start running the game on the server,
             //which will tell them to respawn/start
         console.log("availableGame.players.length ", game.players.length);
-        console.log("this.num_players ", this.num_players);
-        if (game.players.length === this.num_players) {
+        console.log("this.maxNumPlayers ", game.maxNumPlayers);
+        if (game.players.length === game.maxNumPlayers) {
             this.startGame(game);
         }
         this.notifyLobbyListeners();
     };
 
-    game_server.joinOrCreateGame = function(client) {
-        this.log('looking for a game. We have : ' + this.game_count + ' games');
-        var availableGame = this.findAvailableGame();
-        if (availableGame) {
-            this.joinGame(client, availableGame);
-        } else {
-            this.createGame(client);
-        }
-    };
+    // game_server.joinOrCreateGame = function(client) {
+    //     this.log('looking for a game. We have : ' + this.game_count + ' games');
+    //     var availableGame = this.findAvailableGame();
+    //     if (availableGame) {
+    //         this.joinGame(client, availableGame);
+    //     } else {
+    //         this.createGame(client);
+    //     }
+    // };
 
     game_server.findAvailableGame = function () {
         var foundGame = undefined;
@@ -288,7 +301,7 @@
                 //get the game we are checking against
             var game_instance = this.games[gameid];
                 //If the game is a player short
-            if(game_instance.players.length < this.num_players) {
+            if(game_instance.players.length < game_instance.maxNumPlayers) {
                 foundGame = game_instance;
             }
         }

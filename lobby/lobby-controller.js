@@ -23,7 +23,7 @@ angular.module('gameApp.lobby', ['ngRoute'])
     });
 
     $scope.createGame = function() {
-        $scope.socket.send('c');
+        $scope.socket.send('c.' + $scope.gameName + "." + $scope.gameNumPlayers);
         $location.path('/gameplay');
     };
     
@@ -44,9 +44,5 @@ angular.module('gameApp.lobby', ['ngRoute'])
         $location.path('/gameplay');
     };
 
-    // http://stackoverflow.com/questions/14636536/how-to-check-if-a-variable-is-an-integer-in-javascript
-    $scope.isInt = function (value) {
-        return !isNaN(value) && (function(x) { return (x | 0) === x; })(parseFloat(value))
-    };
 }]);
 
