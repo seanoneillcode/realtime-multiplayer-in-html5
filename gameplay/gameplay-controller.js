@@ -9,7 +9,7 @@ angular.module('gameApp.gameplay', ['ngRoute'])
   });
 }])
 
-.controller('GameplayController', ['$scope', 'CurrentGame', 'Gamecore', function GameplayController($scope, currentGame, gamecore) {
+.controller('GameplayController', ['$scope', 'CurrentGame', 'Gamecore', '$location', function GameplayController($scope, currentGame, gamecore, $location) {
 
     $scope.socket = window.socket;
 
@@ -29,6 +29,10 @@ angular.module('gameApp.gameplay', ['ngRoute'])
         if (gameId) {
             $scope.socket.send('j.' + gameId);
         }
+    };
+
+    $scope.quitToLobby = function() {
+        $location.path('/lobby');
     };
 }]);
 

@@ -1,12 +1,12 @@
 html , body {
-	background: #282828;
+	background: #fff;
 	color: #fff;
 	font: 14px sans-serif;
 	padding: 0;
 }
 
 #viewport {
-	border: solid 1px #676767;
+	border: solid 1px #D2355F;
 	height: 480px;
 	margin: auto;
 	width: 720px;
@@ -14,78 +14,69 @@ html , body {
 	background: #000;
 }
 
-.name-change {
-	display: flex;
-}
-
-.name-item {
-	margin: 1em;
-}
-
-.name-button {
-	color: white;
-	background: #333;
-	border: 1px solid #9B794C
-}
-
-.name-button:active {
-	color: #333;
-	background: #eee;
-	border: 1px solid #222;
-}
-
-.name-input {
-	background: #333;
-	color: #D7D7D7;
-	border: solid 1px #446789;
-	padding-left: 0.5em;
-}
-
 #lobby-container {
 	display: flex;
 	flex-direction: column;
+	width: 800px;
 }
 
-.open-game-item {
-	margin-top: 0.2em;
-	background: #369;
-	width: 400px;
-	height: 2em;
+.entry {
 	display: flex;
-	flex-direction: row;
+	width: 800px;
 }
 
-.open-game-detail {
-	flex-grow: 1;
-	text-align: center;
-	padding: 0.3em;
+.quit-wrapper {
+	width: 60px;
+	height: 40px;
+	background-color: #D2355F;
+	display: flex;
+	justify-content: center;
 }
 
-.open-game-button {
+.generic-item {
 	color: #fff;
-	background: #369;
+	font-size: 18px;
+	padding: 10px 24px 10px 24px;
 	border: none;
-	border-left: solid 1px #fff;
+	flex: 1;
 }
 
-.open-game-button:hover {
-	color: #369;
-	background: #fff;
+.generic-input {
+	color: #FFFFFF;
+	background: #006871;
+	border-bottom: solid 1px #000;
 }
 
-.create-button {
-color: #fff;
-background: #2DA38D;
-border: none;
-padding: 0.5em;
-margin: 1em;
+.generic-button {
+	background: #D2355F;
 }
 
-.menu {
-	background-color: #DDF;
+.generic-label {
+	background: #000;
 }
 
 .color-picker {
-	margin-top: 9px;
-	border: none;
+	background: #000;
+	height: 43px;
+	padding: 0 2px 0 2px;
+}
+
+#name {
+	margin-bottom: 80px;
+}
+
+.or-breaker {
+	font-size: 30px;
+	color: #000;
+	margin: 30px;
+	text-align: center;
+}
+
+.generic-lobby-entry {
+	display: flex;
+	margin-top: 1px;
+}
+
+.big-generic {
+	flex: 2;
 }
