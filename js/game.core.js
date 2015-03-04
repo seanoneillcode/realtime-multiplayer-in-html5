@@ -23,6 +23,11 @@
 
 /* The game_core class */
 
+var _;
+if( 'undefined' != typeof global ) {
+    var _ = require('lodash');    
+}
+
     var game_core = function(socket, players, keyboard) {
 
         this.isServer = players !== undefined;
@@ -219,11 +224,10 @@ game_core.prototype.update = function(t) {
 };
 
 game_core.prototype.intializeGame = function () {
-    for (var i = 0; i < this.players.length; i++) {
-        var player = this.players[i];
-        var npos = this.getRandomPostion();
-        player.pos = this.pos(npos);
-    }
+    var self = this;
+    _.forEach(this.players, function(player) {
+        player.pos = self.pos(self.getRandomPostion());
+    });
     this.tagUserid = this.players[0].userid;
     this.tagChanged = true;
     this.server_update();
@@ -330,25 +334,13 @@ game_core.prototype.physics_movement_vector_from_direction = function(direction)
 };
 
 game_core.prototype.update_physics = function() {
-
     if(this.isServer) {
         this.server_update_physics();
     } else {
         this.client_update_physics();
     }
-
 };
 
-/*
-
- Server side functions
- 
-    These functions below are specific to the server side only,
-    and usually start with server_* to make things clearer.
-
-*/
-
-    //Updated at 15ms , simulates the world state
 game_core.prototype.server_update_physics = function() {
 
     this.tagCollision = false;
@@ -385,8 +377,16 @@ game_core.prototype.server_update_physics = function() {
 
 // todo optomize
 game_core.prototype.isColliding = function(a, b) {
-    var circle1 = {x: a.pos.x, y: a.pos.y, radius: (a.size.x * 0.5)};
-    var circle2 = {x: b.pos.x, y: b.pos.y, radius: (b.size.x * 0.5)};
+    var circle1 = {
+        x: a.pos.x,
+        y: a.pos.y,
+        radius: (a.size.x * 0.5)
+    };
+    var circle2 = {
+        x: b.pos.x,
+        y: b.pos.y,
+        radius: (b.size.x * 0.5)
+    };
     var dx = (circle1.x + circle1.radius) - (circle2.x + circle2.radius);
     var dy = (circle1.y + circle1.radius) - (circle2.y + circle2.radius);
     var distance = Math.sqrt(dx * dx + dy * dy);
@@ -443,7 +443,10 @@ game_core.prototype.updatePlayerPhysics = function(player) {
 };
 
 game_core.prototype.input_to_vec = function(input, rot) {
-    var new_vel = {x: 0, y: 0};
+    var new_vel = {
+        x: 0,
+        y: 0
+    };
     var rot_vec = this.rot_to_vec(rot);
     rot_vec.x = (input.y == 0 ? 0 : rot_vec.x * 0.1).fixed(4);
     rot_vec.y = (input.y == 0 ? 0 : rot_vec.y * 0.1).fixed(4);
@@ -478,54 +481,39 @@ game_core.prototype.limit_velocity = function(vec) {
     //Makes sure things run smoothly and notifies clients of changes
     //on the server side
 game_core.prototype.server_update = function(){
-
+    var self = this;
         //Update the state of our local clock to match the timer
     this.server_time = this.local_time;
 
-        //Make a snapshot of the current state, for updating the clients
-    this.laststate = {
-        t   : this.server_time, // our current local time on the server
-        players : []
-    };
+    this.laststate = {};
+    this.laststate.t = this.server_time;
+    this.laststate.tagUserid = this.tagUserid;
 
-    //if (this.tagChanged) {
-        this.laststate.tagUserid = this.tagUserid;
-        //this.tagChanged = false;
-    //}
-
-    // todo only add the values that change!
-    for (var i = 0; i < this.players.length; i++) {
-        var cp = this.players[i];
-        var pdata = {
-            userid: cp.userid,
-            pos: cp.pos,
-            vel: cp.vel,
-            rot: cp.rot,
-            last_input_seq: cp.last_input_seq
+    this.laststate.players = _.map(self.players, function(player) {
+        return {
+            userid: player.userid,
+            pos: player.pos,
+            vel: player.vel,
+            rot: player.rot,
+            last_input_seq: player.last_input_seq
         };
-        this.laststate.players.push(pdata);
-    }
-
-    for (var i = 0; i < this.players.length; i++) {
-        this.players[i].emit('onserverupdate', this.laststate);
-    }
-
+    });
+    _.forEach(self.players, function(player) {
+        player.emit('onserverupdate', self.laststate);
+    });
 };
-
 
 game_core.prototype.handle_server_input = function(client, input, input_time, input_seq) {
     var player = this.get_player(this.players, client.userid);
-    player.inputs.push({inputs:input, time:input_time, seq:input_seq});
+    player.inputs.push({
+        inputs: input,
+        time: input_time,
+        seq: input_seq
+    });
 };
 
-
 /*
-
  Client side functions
-
-    These functions below are specific to the client side only,
-    and usually start with client_* to make things clearer.
-
 */
 
 game_core.prototype.client_handle_input = function(){
@@ -544,43 +532,33 @@ game_core.prototype.client_handle_input = function(){
 
     if( this.keyboard.pressed('A') ||
         this.keyboard.pressed('left')) {
-
             x_dir = -1;
             input.push('l');
-
         }
 
     if( this.keyboard.pressed('D') ||
         this.keyboard.pressed('right')) {
-
             x_dir = 1;
             input.push('r');
-
         }
 
     if( this.keyboard.pressed('S') ||
         this.keyboard.pressed('down')) {
-
             // y_dir = 1;
             // input.push('d');
-
         }
 
     if( this.keyboard.pressed('W') ||
         this.keyboard.pressed('up')) {
-
             y_dir = -1;
             input.push('u');
-
         }
 
     if(input.length) {
-
-            //Update what sequence we are on now
+        //Update what sequence we are on now
         this.input_seq += 1;
 
-            //Store the input state as a snapshot of what happened.
-
+        //Store the input state as a snapshot of what happened.
         this.playerself.inputs.push({
             inputs : input,
             time : this.local_time.fixed(3),
@@ -598,80 +576,68 @@ game_core.prototype.client_handle_input = function(){
         this.socket.send(  server_packet  );
 
             //Return the direction if needed
-        return this.physics_movement_vector_from_direction( {x: x_dir, y: y_dir} );
+        return this.physics_movement_vector_from_direction({
+            x: x_dir,
+            y: y_dir
+        });
 
     } else {
-
-        return {x:0,y:0};
-
+        return {
+            x: 0,
+            y: 0
+        };
     }
 
 };
 
 game_core.prototype.client_process_net_prediction_correction = function() {
 
-        //No updates...
+    //No updates...
     if(!this.server_updates.length) return;
 
-        //The most recent server update
+    //The most recent server update
     var latest_server_data = this.server_updates[this.server_updates.length-1];
 
-    var my_server_pos;
-    var my_server_vel;
     var my_server_rot;
     var my_server_last_input_seq;
 
-    for (var i = 0; i < latest_server_data.players.length; i++) {
-        var player = latest_server_data.players[i];
-        if (player.userid === this.playerself.userid) {
-            my_server_pos = player.pos;
-            my_server_vel = player.vel;
-            my_server_rot = player.rot;
-            my_server_last_input_seq = player.last_input_seq;
-        }
-    }
-
-        //Update the debug server position block
+    var self_player = _.find(latest_server_data.players, {'userid': this.playerself.userid});
+    
+    // Update the debug server position block
     // this.ghosts.server_pos_self.pos = this.pos(my_server_pos);
     // this.ghosts.server_pos_self.vel = this.vel(my_server_vel);
 
+    //here we handle our local input prediction ,
+    //by correcting it with the server and reconciling its differences
 
-            //here we handle our local input prediction ,
-            //by correcting it with the server and reconciling its differences
+    if(self_player) {
+        //The last input sequence index in my local input list
+        //Find this input in the list, and store the index
+        
+        var lastinputseq_index = _.map(this.playerself.inputs, function(input) {
+            return parseInt(input.seq);
+        }).indexOf(parseInt(self_player.last_input_seq));
 
-        if(my_server_last_input_seq) {
-                //The last input sequence index in my local input list
-            var lastinputseq_index = -1;
-                //Find this input in the list, and store the index
-            for(var i = 0; i < this.playerself.inputs.length; ++i) {
-                if(this.playerself.inputs[i].seq == my_server_last_input_seq) { // dunno about this
-                    lastinputseq_index = i;
-                    break;
-                }
-            }
+        //Now we can crop the list of any updates we have already processed
+        if(lastinputseq_index != -1) {
+            //so we have now gotten an acknowledgement from the server that our inputs here have been accepted
+            //and that we can predict from this known position instead
 
-                //Now we can crop the list of any updates we have already processed
-            if(lastinputseq_index != -1) {
-                //so we have now gotten an acknowledgement from the server that our inputs here have been accepted
-                //and that we can predict from this known position instead
-
-                    //remove the rest of the inputs we have confirmed on the server
-                var number_to_clear = Math.abs(lastinputseq_index - (-1));
-                this.playerself.inputs.splice(0, number_to_clear);
-                    //The player is now located at the new server position, authoritive server
-                this.playerself.cur_state.pos = this.pos(my_server_pos);
-                this.playerself.cur_state.vel = this.vel(my_server_vel);
-                this.playerself.cur_state.rot = my_server_rot;
-                this.playerself.last_input_seq = lastinputseq_index;
-                    //Now we reapply all the inputs that we have locally that
-                    //the server hasn't yet confirmed. This will 'keep' our position the same,
-                    //but also confirm the server position at the same time.
-                this.client_update_physics();
-                this.client_update_local_position();
-
-            } // if(lastinputseq_index != -1)
-        } //if my_last_input_on_server
-
+            //remove the rest of the inputs we have confirmed on the server
+            var number_to_clear = Math.abs(lastinputseq_index - (-1));
+            this.playerself.inputs.splice(0, number_to_clear);
+                //The player is now located at the new server position, authoritive server
+            this.playerself.cur_state.pos = this.pos(self_player.pos);
+            this.playerself.cur_state.vel = this.vel(self_player.vel);
+            this.playerself.cur_state.rot = self_player.rot;
+            this.playerself.last_input_seq = lastinputseq_index;
+                //Now we reapply all the inputs that we have locally that
+                //the server hasn't yet confirmed. This will 'keep' our position the same,
+                //but also confirm the server position at the same time.
+            this.client_update_physics();
+            this.client_update_local_position();
+        }
+    }
 };
 
 game_core.prototype.client_process_net_updates = function() {
