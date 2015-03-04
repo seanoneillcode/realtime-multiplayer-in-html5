@@ -6,10 +6,9 @@
     MIT Licensed.
 */
 
-
-
     var game_server = module.exports = { games : {}, game_count:0 };
     var UUID        = require('node-uuid');
+    var _           = require('lodash');
     var verbose     = true;
 
     //Since we are sharing code with the browser, we
@@ -89,21 +88,17 @@
             this.fake_latency = parseFloat(message_parts[1]);
         }
 
-    }; //game_server.onMessage
+    };
 
     game_server.removePlayerFromGame = function(client) {
         if (client.game) {
-            var players = client.game.players;
-            for (var i = 0; i < players.length; i++) {
-                if (players[i].userid === client.userid) {
-                    players.splice(i, 1);
-                    break;
-                }
-            }
-            for (var i = 0; i < players.length; i++) {
-                players[i].send('s.r.' + client.userid);
-            }
-            if (players.length < 1) {
+            client.game.players = _.filter(client.game.players, function (player) {
+                return player.userid != client.userid;
+            });
+            _.forEach(client.game.players, function (player) {
+                player.send('s.r.' + client.userid);
+            });
+            if (client.game.players.length < 1) {
                 this.endGame(client.game);
             }
             client.game = undefined;
@@ -113,12 +108,9 @@
     };
 
     game_server.removeLobbyListener = function(userid) {
-        for (var i = 0; i < game_server.lobbyListeners.length; i++) {
-            if (game_server.lobbyListeners[i].userid === userid) {
-                game_server.lobbyListeners.splice(i, 1)
-                break;
-            }
-        }
+        game_server.lobbyListeners = _.filter(game_server.lobbyListeners, function(client) {
+            return client.userid !== userid;
+        });
     };
 
     game_server.getAndjoinGame = function(client, gameid) {
@@ -171,10 +163,9 @@
                 player.name = name;
                 player.color = color;
             }
-            for (var i = 0; i < client.game.players.length; i++) {
-                var other_client = client.game.players[i];
-                other_client.send('s.b.' + client.userid + "." + name + '.' + color);
-            }
+            _.forEach(client.game.players, function (player) {
+                player.send('s.b.' + client.userid + '.' + name + '.' + color);
+            });
         }
     };
 
@@ -194,14 +185,13 @@
             console.log("received input from client but can't handle it ", client.game);
         }
 
-    }; //game_server.onInput
+    };
 
     // http://stackoverflow.com/questions/14636536/how-to-check-if-a-variable-is-an-integer-in-javascript
     game_server.isInt = function (value) {
         return !isNaN(value) && (function(x) { return (x | 0) === x; })(value);
     };
 
-    // create the game
     game_server.createGame = function(client, gameName, numPlayers) {
 
         var actualNumPlayers = parseFloat(numPlayers);
@@ -210,7 +200,6 @@
         }
 
         var gamePlayers = [];
-
         var player = new gamePlayer(client);
         gamePlayers.push(player);
 
@@ -234,47 +223,37 @@
         console.log('server host at  ' + game.serverGamecore.local_time);
         this.log('player ' + player.userid + ' created a game with id ' + game.id);
         this.notifyLobbyListeners();
-        // return game;
     };
 
     game_server.notifyLobbyListeners = function() {
         var openGames = this.getOpenGameList();
         var listeners = this.lobbyListeners;
-        for (var i = 0; i < listeners.length; i++) {
-            listeners[i].emit("ongamelist", openGames);
-        }
+        _.forEach(this.lobbyListeners, function(listener) {
+            listener.emit("ongamelist", openGames);
+        });
     };
 
-    // notify all the players that the game has started
     game_server.startGame = function(game) {
-        // console.log("host = ", game.player_host.userid);
         console.log("start, availgame players length ", game.players.length);
         game.serverGamecore.intializeGame();
-        for (var i = 0; i < game.players.length; i++) {
-            game.players[i].send('s.s.'+ String(game.serverGamecore.local_time).replace('.','-'));
-            this.removeLobbyListener(game.players[i].userid);
-        }
-    }; //game_server.startGame
-
+        var self = this;
+        _.forEach(game.players, function (player) {
+            player.send('s.s.' + String(game.serverGamecore.local_time).replace('.','-'));
+            self.removeLobbyListener(player.userid);
+        });
+    };
 
     game_server.joinGame = function(client, game) {
         var p = new gamePlayer(client);
-        // availableGame.player_client = p;
         game.players.push(p);
         client.game = game;
-        // p.send('s.j.' + p.userid); //availableGame.player_host
-        for (var i = 0; i < game.players.length; i++) {
-            var existingplayer = game.players[i];
-            if (existingplayer.userid !== p.userid) {
-                existingplayer.send('s.a.' + p.userid + '.' + p.name);
-                p.send('s.a.' + existingplayer.userid + '.' + existingplayer.name);
+        _.forEach(game.players, function(player) {
+            if (player.userid !== p.userid) {
+                player.send('s.a.' + p.userid + '.' + p.name);
+                p.send('s.a.' + player.userid + '.' + player.name);
             }
-        }
-        
+        });
         console.log("join, availgame players length", game.players.length);
-
-            //start running the game on the server,
-            //which will tell them to respawn/start
         console.log("availableGame.players.length ", game.players.length);
         console.log("this.maxNumPlayers ", game.maxNumPlayers);
         if (game.players.length === game.maxNumPlayers) {
@@ -283,49 +262,19 @@
         this.notifyLobbyListeners();
     };
 
-    // game_server.joinOrCreateGame = function(client) {
-    //     this.log('looking for a game. We have : ' + this.game_count + ' games');
-    //     var availableGame = this.findAvailableGame();
-    //     if (availableGame) {
-    //         this.joinGame(client, availableGame);
-    //     } else {
-    //         this.createGame(client);
-    //     }
-    // };
-
-    game_server.findAvailableGame = function () {
-        var foundGame = undefined;
-        for(var gameid in this.games) {
-                //only care about our own properties.
-            if(!this.games.hasOwnProperty(gameid)) continue;
-                //get the game we are checking against
-            var game_instance = this.games[gameid];
-                //If the game is a player short
-            if(game_instance.players.length < game_instance.maxNumPlayers) {
-                foundGame = game_instance;
-            }
-        }
-        return foundGame;
-    };
-
-    //we are requesting to kill a game in progress.
     game_server.endGame = function(game) {
-
         if(game) {
-            // stop the game updates immediate
             game.serverGamecore.stop_update();
-            // notify all players
-            for (var i = 0; i < game.players.length; i++) {
-                var player = game.players[i];
+            _.forEach(game.players, function(player) {
                 player.send('s.e');
-            }
+            });
             delete this.games[game.id];
             this.game_count--;
             this.log('game removed. there are now ' + this.game_count + ' games' );
         } else {
             this.log('that game was not found!');
         }
-    }; //game_server.endGame
+    };
 
     // used by game instances to update
     var frame_time = 60/1000; // run the local game at 16ms/ 60hz
