@@ -18,12 +18,15 @@ angular.module('gameApp.gameplay', ['ngRoute'])
     });
 
     $scope.createGameCore = function() {
-        gamecore.resetGame();
-        var playerself = gamecore.getPlayerSelf(); // todo remove this stuff
-        playerself.userid = currentGame.getUserId();
-        playerself.info_color = '#cc0000';
-        playerself.state = 'connected';
-        playerself.online = true;
+        gamecore.createGame();
+        // var playerself = gamecore.getPlayerSelf(); // todo remove this stuff
+
+        var newUserId = currentGame.getUserId();
+        gamecore.setPlayerSelfUserId(newUserId);
+        // playerself.userid = newUserId;
+        // playerself.info_color = '#cc0000';
+        // playerself.state = 'connected';
+        // playerself.online = true;
 
         var gameId = currentGame.getGameId();
         if (gameId) {

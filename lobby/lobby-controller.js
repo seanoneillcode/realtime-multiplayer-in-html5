@@ -22,20 +22,23 @@ angular.module('gameApp.lobby', ['ngRoute'])
         });
     });
 
+    $scope.socket.on('onconnected', function(data) {
+        $scope.$apply(function() {
+            $scope.userid = data.userid;
+        });
+        currentGame.setUserId(data.userid);
+    });
+
     $scope.createGame = function() {
         $scope.socket.send('c.' + $scope.gameName + "." + $scope.gameNumPlayers);
         $location.path('/gameplay');
     };
     
     $scope.getGamesList = function() {
-        if (currentGame.getUserId() === '') {
-            $scope.socket.on('onconnected', function(data) {
-                $scope.$apply(function() {
-                    $scope.userid = data.userid;
-                    currentGame.setUserId(data.userid);
-                });
-            });
-        }
+        // if (currentGame.getUserId() === '') {
+            
+        // }
+
         $scope.socket.send('l');
     };
 

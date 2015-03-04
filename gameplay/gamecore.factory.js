@@ -4,8 +4,12 @@ angular.module('gameApp').factory('Gamecore', function () {
 
     var keyboard;
 
+    var game;
+
     var createGame = function() {
         
+        console.log("game created");
+
         keyboard = new THREEx.KeyboardState();
         var game = new game_core(window.socket, undefined, keyboard);
 
@@ -28,21 +32,22 @@ angular.module('gameApp').factory('Gamecore', function () {
         var playerColor = localStorage.getItem('playerColor') || '#ffffff';
         var playerName = localStorage.getItem('playerName') || 'Anon';
         game.changeName(playerName, playerColor);
-        
+
         return game;
     }
-
-    var game = createGame();
 
     return {
         getPlayerSelf: function () {
             return game.playerself;
         },
-        resetGame: function () {
+        createGame: function () {
             if (keyboard) {
                 keyboard.destroy();
             }
             game = createGame();
+        },
+        setPlayerSelfUserId: function(userid) {
+            game.setPlayerSelfUserId(userid);
         }
     };
 });
