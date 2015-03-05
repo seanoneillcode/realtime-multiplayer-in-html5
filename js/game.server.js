@@ -17,6 +17,7 @@
 
     //Import shared game library code.
     require('./gamePlayer.js');
+    require('./entity.js');
     require('./game.core.js');
 
     //A simple wrapper for logging so we can toggle it,

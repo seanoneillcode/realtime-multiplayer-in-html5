@@ -44,11 +44,18 @@ if( 'undefined' != typeof global ) {
 
         // how much drag space has. reduces the ships speed
         this.dampening_amount = 0.02;
-        this.max_velocity = 100;
+        this.max_velocity = 60;
         this.rotation_speed = 0.07;
         //The speed at which the clients move.
-        this.playerspeed = 10;
+        this.playerspeed = 6;
         this.players = players ? players : [];
+        this.shootCooldown = 0.5;
+        this.ents = [];
+        this.newEnts = [];
+        this.deadEnts = [];
+        this.entidcounter = 0;
+        this.bulletSpeed = 6;
+        this.drawPlayerIndex = 0;
 
         if(!this.isServer) {
             
@@ -225,9 +232,9 @@ game_core.prototype.update = function(t) {
 
 game_core.prototype.intializeGame = function () {
     var self = this;
-    _.forEach(this.players, function(player) {
-        player.pos = self.pos(self.getRandomPostion());
-    });
+    // _.forEach(this.players, function(player) {
+    //     player.pos = self.pos(self.getRandomPostion());
+    // });
     this.tagUserid = this.players[0].userid;
     console.log("tag User Id = " + this.tagUserid);
     this.tagChanged = true;
@@ -240,7 +247,7 @@ game_core.prototype.intializeGame = function () {
 */
 game_core.prototype.check_boundry_collision = function(gamePlayer) {
 
-     var pos_limits = {
+    var pos_limits = {
         x_min: gamePlayer.size.hx,
         x_max: this.world.width - gamePlayer.size.hx,
         y_min: gamePlayer.size.hy,
@@ -273,6 +280,73 @@ game_core.prototype.check_boundry_collision = function(gamePlayer) {
     
 };
 
+game_core.prototype.entityCollision = function(entity) {
+    var self = this;
+    var pos_limits = {
+        x_min: 10,
+        x_max: this.world.width - 10,
+        y_min: 10,
+        y_max: this.world.height - 10
+    };
+
+        //Left wall.
+    if(entity.pos.x <= pos_limits.x_min) {
+        entity.pos.x = pos_limits.x_max;
+        entity.state = 'dead';
+    }
+
+        //Right wall
+    if(entity.pos.x >= pos_limits.x_max ) {
+        entity.pos.x = pos_limits.x_min;
+        entity.state = 'dead';
+    }
+    
+        //Roof wall.
+    if(entity.pos.y <= pos_limits.y_min) {
+        entity.pos.y = pos_limits.y_max;
+        entity.state = 'dead';
+    }
+
+        //Floor wall
+    if(entity.pos.y >= pos_limits.y_max ) {
+        entity.pos.y = pos_limits.y_min;
+        entity.state = 'dead';
+    }
+
+    _.forEach(this.players, function(player) {
+        if (entity.state !== 'dead') {
+            if (self.isColliding(entity, player)) {
+                entity.state = 'dead';
+                player.pos = self.getRandomPostion();
+                player.score = player.score - 1;
+                var owner = self.get_player(self.players, entity.userid);
+                if (owner) {
+                    owner.score = owner.score + 1;
+                }
+            }
+        }
+    });
+
+        //Fixed point helps be more deterministic
+    try {
+        entity.pos.x = entity.pos.x.fixed(4);
+        entity.pos.y = entity.pos.y.fixed(4);
+    } catch (err) {
+        console.log(entity);
+    }
+
+    if (entity.state === 'dead') {
+        this.deadEnts.push(entity);
+        this.removeEntity(entity.id);
+    }
+    
+};
+
+game_core.prototype.removeEntity = function(id) {
+    this.ents = _.reject(this.ents, {
+        'id' : id
+    });
+};
 
 game_core.prototype.process_input = function( player ) {
 
@@ -280,6 +354,7 @@ game_core.prototype.process_input = function( player ) {
     //so we process each one
     var x_dir = 0;
     var y_dir = 0;
+    var space = 0;
     var ic = player.inputs.length;
     if(ic) {
         for(var j = 0; j < ic; ++j) {
@@ -302,15 +377,19 @@ game_core.prototype.process_input = function( player ) {
                 if(key == 'u') {
                     y_dir -= 1;
                 }
+                if(key == 's') {
+                    space += 1;
+                }
             } //for all input values
 
         } //for each input command
     } //if we have inputs
 
         //we have a direction vector now, so apply the same physics as the client
-    var resulting_vector = {
+    var resulting_input = {
         x: x_dir,
-        y: y_dir
+        y: y_dir,
+        s: space
     };
     if(player.inputs.length) {
         //we can now clear the array since these have been processed
@@ -320,7 +399,7 @@ game_core.prototype.process_input = function( player ) {
     }
 
         //give it back
-    return resulting_vector;
+    return resulting_input;
 
 };
 
@@ -343,7 +422,7 @@ game_core.prototype.update_physics = function() {
 };
 
 game_core.prototype.server_update_physics = function() {
-
+    var self = this;
     this.tagCollision = false;
     var newTagUserid;
 
@@ -373,6 +452,12 @@ game_core.prototype.server_update_physics = function() {
         this.tagSwitch = false;
         // onCollideStop
     }
+
+    _.forEach(this.ents, function(entity) {
+        self.updateEntityPhysics(entity);
+        self.entityCollision(entity);
+    });
+
 
 };
 
@@ -404,9 +489,9 @@ game_core.prototype.client_update_physics = function() {
         this.playerself.old_state.vel = this.vel( this.playerself.cur_state.vel );
         this.playerself.old_state.rot = this.playerself.cur_state.rot;
         
-        var new_dir = this.process_input(this.playerself);
-        var new_rot = this.playerself.cur_state.rot + (new_dir.x * this.rotation_speed);
-        var new_vel = this.input_to_vec(new_dir, new_rot);
+        var new_input = this.process_input(this.playerself);
+        var new_rot = this.playerself.cur_state.rot + (new_input.x * this.rotation_speed);
+        var new_vel = this.input_to_vec(new_input, new_rot);
 
         this.playerself.cur_state.rot = new_rot.fixed(4);
         this.playerself.cur_state.vel = this.v_add( this.playerself.old_state.vel, new_vel);
@@ -421,15 +506,21 @@ game_core.prototype.client_update_physics = function() {
     }
 };
 
+game_core.prototype.updateEntityPhysics = function(entity) {
+    entity.pos = this.v_add(entity.vel, entity.pos);
+    entity.pos.x = entity.pos.x.fixed(4);
+    entity.pos.y = entity.pos.y.fixed(4);
+};
+
 game_core.prototype.updatePlayerPhysics = function(player) {
 
     player.old_state.pos = player.pos;
     player.old_state.vel = player.vel;
     player.old_state.rot = player.rot;
 
-    var new_dir = this.process_input(player);
-    var new_rot = player.rot + (new_dir.x * this.rotation_speed);
-    var new_vel = this.input_to_vec(new_dir, new_rot);
+    var new_input = this.process_input(player);
+    var new_rot = player.rot + (new_input.x * this.rotation_speed);
+    var new_vel = this.input_to_vec(new_input, new_rot);
 
     player.rot = new_rot.fixed(4);
     player.vel = this.v_add(player.old_state.vel, new_vel);
@@ -440,7 +531,22 @@ game_core.prototype.updatePlayerPhysics = function(player) {
     player.pos.x = player.pos.x.fixed(4);
     player.pos.y = player.pos.y.fixed(4);
 
+    this.processShootInput(new_input, player);
+
     return player;
+};
+
+game_core.prototype.processShootInput = function(input, player) {
+    if (input.s > 0) {
+        if (player.shootCooldownTimer <= 0) {
+            player.shootCooldownTimer = this.shootCooldown;
+            console.log("player succesfully shot");
+            this.createEntity(player);
+        }
+    }
+    if (player.shootCooldownTimer > 0) {
+        player.shootCooldownTimer = player.shootCooldownTimer - 0.015;
+    }
 };
 
 game_core.prototype.input_to_vec = function(input, rot) {
@@ -449,8 +555,8 @@ game_core.prototype.input_to_vec = function(input, rot) {
         y: 0
     };
     var rot_vec = this.rot_to_vec(rot);
-    rot_vec.x = (input.y == 0 ? 0 : rot_vec.x * 0.1).fixed(4);
-    rot_vec.y = (input.y == 0 ? 0 : rot_vec.y * 0.1).fixed(4);
+    rot_vec.x = (input.y == 0 ? 0 : rot_vec.x * 0.08).fixed(4);
+    rot_vec.y = (input.y == 0 ? 0 : rot_vec.y * 0.08).fixed(4);
     return rot_vec;
 };
 
@@ -496,9 +602,42 @@ game_core.prototype.server_update = function(){
             pos: player.pos,
             vel: player.vel,
             rot: player.rot,
-            last_input_seq: player.last_input_seq
+            last_input_seq: player.last_input_seq,
+            score: player.score
         };
     });
+
+    this.laststate.ents = _.map(self.ents, function(entity) {
+        return {
+            id: entity.id,
+            pos: entity.pos,
+            vel: entity.vel
+        }
+    });
+
+    var entityActions = [];
+    if (this.newEnts.length > 0) {
+        _.forEach(this.newEnts, function(entity) {
+            entityActions.push({
+                action: 'add',
+                id: entity.id,
+                userid: entity.userid
+            });
+        });
+        self.laststate.entityActions = entityActions;
+        self.newEnts = [];
+    }
+    if (this.deadEnts.length > 0) {
+        _.forEach(this.deadEnts, function(entity) {
+            entityActions.push({
+                action: 'remove',
+                id: entity.id
+            });
+        });
+        self.laststate.entityActions = entityActions;
+        self.deadEnts = [];
+    }
+
     _.forEach(self.players, function(player) {
         player.emit('onserverupdate', self.laststate);
     });
@@ -511,6 +650,30 @@ game_core.prototype.handle_server_input = function(client, input, input_time, in
         time: input_time,
         seq: input_seq
     });
+};
+
+// entity
+game_core.prototype.createEntity = function(player) {
+    this.entidcounter = this.entidcounter + 1; // todo this needs to be less shit, overflow and such
+    var newEntity = new entity(this.entidcounter, player.userid);
+    newEntity.pos = this.pos(player.pos);
+    var newVel = this.rot_to_vec(player.rot);
+    var frontShift = this.v_mul_scalar(newVel, 20);
+    newEntity.pos = this.v_add(newEntity.pos, frontShift);
+    newVel = this.v_mul_scalar(newVel, this.bulletSpeed);
+    newEntity.vel = this.vel(newVel);
+    this.ents.push(newEntity);
+    this.newEnts.push(newEntity);
+};
+
+game_core.prototype.createClientEntity = function(id, userid) {
+    var index = _.find(this.ents, function(entity) {
+        return entity.id === id;
+    });
+    if (!index) {
+        var newEntity = new entity(id, userid);
+        this.ents.push(newEntity);
+    }
 };
 
 /*
@@ -531,29 +694,25 @@ game_core.prototype.client_handle_input = function(){
     var input = [];
     this.client_has_input = false;
 
-    if( this.keyboard.pressed('A') ||
-        this.keyboard.pressed('left')) {
-            x_dir = -1;
-            input.push('l');
-        }
-
-    if( this.keyboard.pressed('D') ||
-        this.keyboard.pressed('right')) {
-            x_dir = 1;
-            input.push('r');
-        }
-
-    if( this.keyboard.pressed('S') ||
-        this.keyboard.pressed('down')) {
-            // y_dir = 1;
-            // input.push('d');
-        }
-
-    if( this.keyboard.pressed('W') ||
-        this.keyboard.pressed('up')) {
-            y_dir = -1;
-            input.push('u');
-        }
+    if( this.keyboard.pressed('left')) {
+        x_dir = -1;
+        input.push('l');
+    }
+    if( this.keyboard.pressed('right')) {
+        x_dir = 1;
+        input.push('r');
+    }
+    if( this.keyboard.pressed('down')) {
+        // y_dir = 1;
+        // input.push('d');
+    }
+    if( this.keyboard.pressed('up')) {
+        y_dir = -1;
+        input.push('u');
+    }
+    if (this.keyboard.pressed('space')) {
+        input.push('s');
+    }
 
     if(input.length) {
         //Update what sequence we are on now
@@ -642,7 +801,7 @@ game_core.prototype.client_process_net_prediction_correction = function() {
 };
 
 game_core.prototype.client_process_net_updates = function() {
-
+    var self = this;
         //No updates...
     if(!this.server_updates.length) return;
 
@@ -707,24 +866,60 @@ game_core.prototype.client_process_net_updates = function() {
 
         var other_player_server_data = latest_server_data.players[i];
         var other_player = this.get_player(this.players, other_player_server_data.userid);
-
+        if (other_player) {
+            other_player.score = other_player_server_data.score;
+        }
         if (other_player && other_player.userid !== this.playerself.userid) {
             if(this.client_smoothing) {
                 var targetplayer = this.get_player(target.players, other_player.userid);
                 var previousplayer = this.get_player(previous.players, other_player.userid);
                 if (targetplayer && previousplayer) {
-                    this.smooth_player(this.players, other_player_server_data, targetplayer, previousplayer, time_point);
+                    var p = this.get_player(this.players, other_player_server_data.userid);
+                    //this.smooth_player(p, other_player_server_data, targetplayer, previousplayer, time_point);
+                    this.smooth_pos(p, other_player_server_data, targetplayer, previousplayer, time_point);
+                    this.smooth_vel(p, other_player_server_data, targetplayer, previousplayer, time_point);
+                    this.smooth_rot(p, other_player_server_data, targetplayer, previousplayer, time_point);
                 }
             } else {
                 other_player.pos = this.pos(other_player_server_data.pos);
                 other_player.vel = this.vel(other_player_server_data.vel);
                 other_player.rot = other_player_server_data.rot;
             }
-
+            
         }
     }
+    _.forEach(latest_server_data.entityActions, function (entityAction) {
+        if (entityAction.action === "add") {
+            self.createClientEntity(entityAction.id, entityAction.userid);
+        }
+        if (entityAction.action === "remove") {
+            self.removeEntity(entityAction.id);
+        }
+    });
+
+    // to non naive for ent update
+    _.forEach(latest_server_data.ents, function(edata) {
+        var entity = self.getEntity(self.ents, edata.id);
+        if (entity) {
+            if (self.client_smoothing) {
+                var targetentity = self.getEntity(target.ents, edata.id);
+                var previousentity = self.getEntity(previous.ents, edata.id);
+                if (targetentity && previousentity) {
+                    self.smooth_pos(entity, edata, targetentity, previousentity, time_point);
+                }
+            } else {
+                if (edata.pos) {
+                    entity.pos = self.pos(edata.pos);
+                }
+                if (edata.vel) {
+                    entity.vel = self.vel(edata.vel);
+                }
+            }
+        }
+    });
 
     this.tagUserid = latest_server_data.tagUserid;
+
 
     //Now, if not predicting client movement , we will maintain the local player position
     //using the same method, smoothing the players information from the past.
@@ -734,31 +929,35 @@ game_core.prototype.client_process_net_updates = function() {
 
 }; //game_core.client_process_net_updates
 
-// todo make it per property
-game_core.prototype.smooth_player = function(players, pdata, target, previous, time_point) {
-
-    var serverpos = pdata.pos;
-    var servervel = pdata.vel;
-    var serverrot = pdata.rot;
-    
+game_core.prototype.smooth_pos = function(player, server, target, previous, time_point) {
+    var serverpos = server.pos;
     var targetpos = target.pos;
-    var targetvel = target.vel;
-    var targetrot = target.rot;
-
     var pastpos = previous.pos;
-    var pastvel = previous.vel;
-    var pastrot = previous.rot;
-
     var server_lerp_pos = pastpos ? this.v_lerp(pastpos, targetpos, time_point) : targetpos;
-    var server_lerp_vel = pastvel ? this.v_lerp(pastvel, targetvel, time_point) : targetvel;
-    var server_lerp_rot = pastrot ? this.lerp(pastrot, targetrot, time_point) : targetrot;
-
-    var player = this.get_player(this.players, pdata.userid);
-
     player.pos = this.v_lerp(player.pos, server_lerp_pos, this._pdt * this.client_smooth);
-    player.vel = this.v_lerp(player.vel, server_lerp_vel, this._pdt * this.client_smooth);
-    player.rot = this.lerp(server_lerp_rot, server_lerp_rot, this._pdt * this.client_smooth);
+    if (this.vector_distance(player.pos, server.pos) > 40) {
+        player.pos = server.pos;
+    }
+};
 
+game_core.prototype.vector_distance = function(a, b) {
+    return ((a.x - b.x) * (a.x - b.x)) + ((a.y - b.y) * (a.y - b.y));
+};
+
+game_core.prototype.smooth_vel = function(player, server, target, previous, time_point) {
+    var servervel = server.vel;
+    var targetvel = target.vel;
+    var pastvel = previous.vel;
+    var server_lerp_vel = pastvel ? this.v_lerp(pastvel, targetvel, time_point) : targetvel;
+    player.vel = this.v_lerp(player.vel, server_lerp_vel, this._pdt * this.client_smooth);
+};
+
+game_core.prototype.smooth_rot = function(player, server, target, previous, time_point) {
+    var serverrot = server.rot;
+    var targetrot = target.rot;
+    var pastrot = previous.rot;
+    var server_lerp_rot = pastrot ? this.lerp(pastrot, targetrot, time_point) : targetrot;
+    player.rot = this.lerp(server_lerp_rot, server_lerp_rot, this._pdt * this.client_smooth);
 };
 
 game_core.prototype.get_player = function(players, userid) {
@@ -771,6 +970,12 @@ game_core.prototype.setPlayerSelfUserId = function(userid) {
     this.playerself.userid = userid;
     this.playerself.state = 'connected';
     this.playerself.online = true;
+};
+
+game_core.prototype.getEntity = function(ents, id) {
+    return _.find(ents, function(entity) {
+        return entity.id === id;
+    });
 };
 
 game_core.prototype.client_onserverupdate_recieved = function(data){
@@ -798,6 +1003,32 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
                 }
                 if (pdata.rot) {
                     player.rot = pdata.rot;
+                }
+                if (pdata.score) {
+                    player.score = pdata.score;
+                }
+            });
+            if (data.entityActions) {
+                console.log("found some entityActions in update");
+            }
+            _.forEach(data.entityActions, function (entityAction) {
+                console.log("entity action caught, ", entityAction);
+                if (entityAction.action === "add") {
+                    self.createClientEntity(entityAction.id, entityAction.userid);
+                }
+                if (entityAction.action === "remove") {
+                    self.removeEntity(entityAction.id);
+                }
+            });
+            _.forEach(data.ents, function(edata) {
+                var entity = self.getEntity(this.ents, edata.id);
+                if (entity) {
+                    if (edata.pos) {
+                        entity.pos = self.pos(edata.pos);
+                    }
+                    if (edata.vel) {
+                        entity.vel = self.vel(edata.vel);
+                    }
                 }
             });
             this.tagUserid = data.tagUserid;
@@ -883,8 +1114,13 @@ game_core.prototype.client_update = function() {
     this.client_update_local_position();
 
     //Now they should have updated, we can draw the entity
+    self.drawPlayerIndex = 0;
     _.forEach(this.players, function(player) {
         self.drawPlayer(player);
+    });
+
+    _.forEach(this.ents, function(entity) {
+        self.drawEntity(entity);
     });
 
         //and these
@@ -1123,7 +1359,7 @@ game_core.prototype.client_onnetmessage = function(data) {
                 case 'e' : //end game requested
                     this.client_ondisconnect(commanddata); break;
 
-                case 't' : //end game requested
+                case 't' : //tag
                     this.client_ontagged(commanddata); break;
 
                 case 'a' : //add player requested
@@ -1132,7 +1368,7 @@ game_core.prototype.client_onnetmessage = function(data) {
                 case 'p' : //server ping
                     this.client_onping(commanddata); break;
 
-                case 'b' : //server ping
+                case 'b' : //server broadcast
                     this.client_onplayerdatachange(commanddata, morecommanddata, evenmorecommanddata); break;
 
             } //subcommand
@@ -1221,8 +1457,23 @@ game_core.prototype.getOpenGamesList = function() {
     this.socket.send('l');
 };
 
-game_core.prototype.drawPlayer = function(player){
+game_core.prototype.drawEntity = function (entity) {
+    if (this.ctx) {
+        this.ctx.fillStyle = '#fff';
 
+        this.ctx.save();
+        // this.ctx.translate(entity.pos.x, entity.pos.y);
+
+            //Draw a rectangle for us
+        this.ctx.fillRect(entity.pos.x - 5, entity.pos.y - 5, 10, 10);
+
+        this.ctx.restore();
+    }
+};
+
+game_core.prototype.drawPlayer = function(player){
+    this.drawPlayerIndex = this.drawPlayerIndex + 1;
+    
     if (this.ctx) {
         this.ctx.fillStyle = player.color;
         if (player.userid === this.tagUserid) {
@@ -1246,14 +1497,18 @@ game_core.prototype.drawPlayer = function(player){
 
         this.ctx.restore();
             //Draw a status update
-        if (player.state !== 'local_pos(joined)' && player.state !== 'YOU local_pos(joined)') {
-            this.ctx.fillStyle = player.info_color;
-            this.ctx.fillText(player.state, player.pos.x+18, player.pos.y + 4);
-        }
+        // if (player.state !== 'local_pos(joined)' && player.state !== 'YOU local_pos(joined)') {
+        //     this.ctx.fillStyle = player.info_color;
+        //     this.ctx.fillText(player.state, player.pos.x+18, player.pos.y + 4);
+        // }
 
         this.ctx.fillStyle = player.color;
+        this.ctx.font="14px Arial";
         this.ctx.fillText(player.name, player.pos.x-14, player.pos.y + 24);
+        this.ctx.font="24px Arial";
+        this.ctx.fillText(player.name + " : " + player.score, 30, 30 * this.drawPlayerIndex);
     }
+    
 };
 
 game_core.prototype.client_draw_info = function() {
