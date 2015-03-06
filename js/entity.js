@@ -1,6 +1,6 @@
 
 
-entity = function(id, userid) {
+entity = function(id, userid, type, size) {
     this.pos = {
         x: 0,
         y: 0
@@ -11,11 +11,9 @@ entity = function(id, userid) {
     };
     this.id = id;
     this.state = "alive";
-    this.size = {
-        x: 10,
-        y: 10
-    }
+    this.size = {x: size.x, y: size.y};
     this.userid = userid;
+    this.type = type;
 };
 
 gamePlayer.prototype.update = function() {

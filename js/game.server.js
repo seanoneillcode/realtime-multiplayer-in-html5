@@ -224,6 +224,7 @@
         console.log('server host at  ' + game.serverGamecore.local_time);
         this.log('player ' + player.userid + ' created a game with id ' + game.id);
         this.notifyLobbyListeners();
+        //game.serverGamecore.firstPlayerStart();
     };
 
     game_server.notifyLobbyListeners = function() {

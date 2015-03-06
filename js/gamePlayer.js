@@ -7,7 +7,7 @@ gamePlayer = function(player_instance) {
         //Set up initial values for our state information
     this.pos = { x:0, y:0 };
     this.vel = { x:0, y:0 };
-    this.size = { x:16, y:16, hx:8, hy:8 };
+    this.size = { x:12, y:12, hx:12, hy:12 };
     this.rot = 0;
     this.state = 'not-connected';
     this.color = 'rgb(255,255,255)';

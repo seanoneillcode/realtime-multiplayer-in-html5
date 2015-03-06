@@ -56,6 +56,8 @@ if( 'undefined' != typeof global ) {
         this.entidcounter = 0;
         this.bulletSpeed = 6;
         this.drawPlayerIndex = 0;
+        this.explosions = [];
+        this.numAsteroids = 8;
 
         if(!this.isServer) {
             
@@ -235,10 +237,12 @@ game_core.prototype.intializeGame = function () {
     // _.forEach(this.players, function(player) {
     //     player.pos = self.pos(self.getRandomPostion());
     // });
+    
     this.tagUserid = this.players[0].userid;
     console.log("tag User Id = " + this.tagUserid);
     this.tagChanged = true;
     this.server_update();
+    this.firstPlayerStart();
 };
 
 /*
@@ -291,37 +295,60 @@ game_core.prototype.entityCollision = function(entity) {
 
         //Left wall.
     if(entity.pos.x <= pos_limits.x_min) {
-        entity.pos.x = pos_limits.x_max;
-        entity.state = 'dead';
+        entity.vel.x = entity.vel.x * -1;
+        if (entity.type === 'bullet') {
+            entity.state = 'dead';
+        }
     }
 
         //Right wall
     if(entity.pos.x >= pos_limits.x_max ) {
-        entity.pos.x = pos_limits.x_min;
-        entity.state = 'dead';
+        entity.vel.x = entity.vel.x * -1;
+        if (entity.type === 'bullet') {
+            entity.state = 'dead';
+        }
     }
     
         //Roof wall.
     if(entity.pos.y <= pos_limits.y_min) {
-        entity.pos.y = pos_limits.y_max;
-        entity.state = 'dead';
+        entity.vel.y = entity.vel.y * -1;
+        if (entity.type === 'bullet') {
+            entity.state = 'dead';
+        }
     }
 
         //Floor wall
     if(entity.pos.y >= pos_limits.y_max ) {
-        entity.pos.y = pos_limits.y_min;
-        entity.state = 'dead';
+        entity.vel.y = entity.vel.y * -1;
+        if (entity.type === 'bullet') {
+            entity.state = 'dead';
+        }
     }
 
     _.forEach(this.players, function(player) {
         if (entity.state !== 'dead') {
             if (self.isColliding(entity, player)) {
-                entity.state = 'dead';
+                if (entity.type === 'bullet') {
+                    entity.state = 'dead';
+                }
                 player.pos = self.getRandomPostion();
                 player.score = player.score - 1;
                 var owner = self.get_player(self.players, entity.userid);
                 if (owner) {
                     owner.score = owner.score + 1;
+                }
+            }
+        }
+    });
+
+    var asteroids = _.filter(this.ents, function(ent) {
+        return ent.type === 'asteroid';
+    });
+    _.forEach(asteroids, function(asteroid) {
+        if (entity.state !== 'dead') {
+            if (self.isColliding(entity, asteroid)) {
+                if (entity.type === 'bullet') {
+                    entity.state = 'dead';
                 }
             }
         }
@@ -343,9 +370,21 @@ game_core.prototype.entityCollision = function(entity) {
 };
 
 game_core.prototype.removeEntity = function(id) {
+    var entity = _.find(this.ents, {'id' : id});
+    if (entity && !this.isServer) {
+        this.createExplosion(id, entity.pos, 10);
+    }
     this.ents = _.reject(this.ents, {
         'id' : id
     });
+};
+
+game_core.prototype.createExplosion = function(id, pos, radius) {
+    console.log("should be new explosion");
+    var expl = new explosion(entity.id);
+    expl.pos = this.pos(pos);
+    expl.size.x = radius;
+    this.explosions.push(expl);
 };
 
 game_core.prototype.process_input = function( player ) {
@@ -466,20 +505,21 @@ game_core.prototype.isColliding = function(a, b) {
     var circle1 = {
         x: a.pos.x,
         y: a.pos.y,
-        radius: (a.size.x * 0.5)
+        radius: (a.size.x * 0.9)
     };
     var circle2 = {
         x: b.pos.x,
         y: b.pos.y,
-        radius: (b.size.x * 0.5)
+        radius: (b.size.x * 0.9)
     };
-    var dx = (circle1.x + circle1.radius) - (circle2.x + circle2.radius);
-    var dy = (circle1.y + circle1.radius) - (circle2.y + circle2.radius);
+    var dx = circle1.x - circle2.x;
+    var dy = circle1.y - circle2.y;
     var distance = Math.sqrt(dx * dx + dy * dy);
     return (distance < circle1.radius + circle2.radius);
 };
 
 game_core.prototype.client_update_physics = function() {
+    var self = this;
 
     //Fetch the new direction from the input buffer,
     //and apply it to the state so we can smooth it in the visual state
@@ -503,6 +543,11 @@ game_core.prototype.client_update_physics = function() {
 
         this.playerself.pos.x = this.playerself.pos.x.fixed(4);
         this.playerself.pos.y = this.playerself.pos.y.fixed(4);
+
+
+        _.forEach(self.ents, function(entity) {
+            entity.pos = self.v_add(entity.pos, entity.vel);
+        });
     }
 };
 
@@ -541,7 +586,8 @@ game_core.prototype.processShootInput = function(input, player) {
         if (player.shootCooldownTimer <= 0) {
             player.shootCooldownTimer = this.shootCooldown;
             console.log("player succesfully shot");
-            this.createEntity(player);
+            var newVel = this.rot_to_vec(player.rot);
+            this.createBullet(player.userid, player.pos, newVel);
         }
     }
     if (player.shootCooldownTimer > 0) {
@@ -607,21 +653,28 @@ game_core.prototype.server_update = function(){
         };
     });
 
-    this.laststate.ents = _.map(self.ents, function(entity) {
+    var bullets = _.filter(self.ents, function(entity) {
+        return entity.type === 'bullet';
+    });
+    
+    this.laststate.ents = _.map(bullets, function(entity) {
         return {
             id: entity.id,
             pos: entity.pos,
             vel: entity.vel
         }
     });
-
+    
     var entityActions = [];
     if (this.newEnts.length > 0) {
         _.forEach(this.newEnts, function(entity) {
             entityActions.push({
                 action: 'add',
                 id: entity.id,
-                userid: entity.userid
+                userid: entity.userid,
+                type: entity.type,
+                size: entity.size,
+                pos: entity.pos
             });
         });
         self.laststate.entityActions = entityActions;
@@ -652,28 +705,48 @@ game_core.prototype.handle_server_input = function(client, input, input_time, in
     });
 };
 
-// entity
-game_core.prototype.createEntity = function(player) {
-    this.entidcounter = this.entidcounter + 1; // todo this needs to be less shit, overflow and such
-    var newEntity = new entity(this.entidcounter, player.userid);
-    newEntity.pos = this.pos(player.pos);
-    var newVel = this.rot_to_vec(player.rot);
-    var frontShift = this.v_mul_scalar(newVel, 20);
-    newEntity.pos = this.v_add(newEntity.pos, frontShift);
-    newVel = this.v_mul_scalar(newVel, this.bulletSpeed);
-    newEntity.vel = this.vel(newVel);
-    this.ents.push(newEntity);
-    this.newEnts.push(newEntity);
+game_core.prototype.createBullet = function(userid, pos, vel) {
+    var frontShift = this.v_mul_scalar(vel, 20);
+    var newPos = this.v_add(pos, frontShift);
+    var newVel = this.v_mul_scalar(vel, this.bulletSpeed);
+    this.createEntity(userid, newPos, newVel, 'bullet', {x: 10, y: 10});
 };
 
-game_core.prototype.createClientEntity = function(id, userid) {
+// entity
+game_core.prototype.createEntity = function(userid, pos, vel, type, size) {
+    this.entidcounter = this.entidcounter + 1; // todo this needs to be less shit, overflow and such
+    var newEntity = new entity(this.entidcounter, userid, type, size);
+    newEntity.pos = this.pos(pos);
+    newEntity.vel = this.vel(vel);
+    this.ents.push(newEntity);
+    this.newEnts.push(newEntity);
+    return newEntity;
+};
+
+game_core.prototype.createClientEntity = function(id, userid, type, size) {
     var index = _.find(this.ents, function(entity) {
         return entity.id === id;
     });
     if (!index) {
-        var newEntity = new entity(id, userid);
+        var newEntity = new entity(id, userid, type, size);
         this.ents.push(newEntity);
     }
+    return newEntity;
+};
+
+game_core.prototype.firstPlayerStart = function() {
+    var self = this;
+    window.setTimeout(function() {
+        for (var i = 0; i < self.numAsteroids; i++) {
+            var pos = self.getRandomPostion();
+            var vel = self.rot_to_vec(self.randomInRange(0, 6));
+            var size = self.randomInRange(20, 40);
+            var newEntity = self.createEntity(0, pos, {x: 0, y: 0}, 'asteroid', {x: size, y: size});
+        }
+    }, 500);
+    
+    
+    // this.server_update();
 };
 
 /*
@@ -867,7 +940,15 @@ game_core.prototype.client_process_net_updates = function() {
         var other_player_server_data = latest_server_data.players[i];
         var other_player = this.get_player(this.players, other_player_server_data.userid);
         if (other_player) {
+            var oldScore = other_player.score;
             other_player.score = other_player_server_data.score;
+            if (other_player.score < oldScore) {
+                self.createExplosion(other_player.userid, other_player.pos, 28);
+                self.createExplosion(other_player.userid, 
+                    {x: self.randomInRange(other_player.pos.x - 12, other_player.pos.x + 12), y: self.randomInRange(other_player.pos.y - 12, other_player.pos.y + 12)}, 7);
+                self.createExplosion(other_player.userid, 
+                    {x: self.randomInRange(other_player.pos.x - 12, other_player.pos.x + 12), y: self.randomInRange(other_player.pos.y - 12, other_player.pos.y + 12)}, 14);
+            }
         }
         if (other_player && other_player.userid !== this.playerself.userid) {
             if(this.client_smoothing) {
@@ -890,7 +971,9 @@ game_core.prototype.client_process_net_updates = function() {
     }
     _.forEach(latest_server_data.entityActions, function (entityAction) {
         if (entityAction.action === "add") {
-            self.createClientEntity(entityAction.id, entityAction.userid);
+            console.log("add ", entityAction.type);
+            var entity = self.createClientEntity(entityAction.id, entityAction.userid, entityAction.type, entityAction.size);
+            entity.pos = self.pos(entityAction.pos);
         }
         if (entityAction.action === "remove") {
             self.removeEntity(entityAction.id);
@@ -906,6 +989,13 @@ game_core.prototype.client_process_net_updates = function() {
                 var previousentity = self.getEntity(previous.ents, edata.id);
                 if (targetentity && previousentity) {
                     self.smooth_pos(entity, edata, targetentity, previousentity, time_point);
+                } else {
+                    if (edata.pos) {
+                        entity.pos = self.pos(edata.pos);
+                    }
+                    if (edata.vel) {
+                        entity.vel = self.vel(edata.vel);
+                    }
                 }
             } else {
                 if (edata.pos) {
@@ -928,6 +1018,7 @@ game_core.prototype.client_process_net_updates = function() {
     }
 
 }; //game_core.client_process_net_updates
+
 
 game_core.prototype.smooth_pos = function(player, server, target, previous, time_point) {
     var serverpos = server.pos;
@@ -995,6 +1086,16 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
         if(this.naive_approach) {
             _.forEach(data.players, function(pdata) {
                 var player = self.get_player(self.players, pdata.userid);
+
+                var oldScore = player.score;
+                if (pdata.score < oldScore) {
+                    self.createExplosion(pdata.userid, pdata.pos, 28);
+                    self.createExplosion(pdata.userid, 
+                        {x: self.randomInRange(pdata.pos.x - 12, pdata.pos.x + 12), y: self.randomInRange(pdata.pos.y - 12, pdata.pos.y + 12)}, 7);
+                    self.createExplosion(pdata.userid, 
+                        {x: self.randomInRange(pdata.pos.x - 12, pdata.pos.x + 12), y: self.randomInRange(pdata.pos.y - 12, pdata.pos.y + 12)}, 14);
+                }
+
                 if (pdata.pos) {
                     player.pos = self.pos(pdata.pos);
                 }
@@ -1014,14 +1115,15 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
             _.forEach(data.entityActions, function (entityAction) {
                 console.log("entity action caught, ", entityAction);
                 if (entityAction.action === "add") {
-                    self.createClientEntity(entityAction.id, entityAction.userid);
+                    var entity = self.createClientEntity(entityAction.id, entityAction.userid, entityAction.type, entityAction.size);
+                    entity.pos = self.pos(entityAction.pos);
                 }
                 if (entityAction.action === "remove") {
                     self.removeEntity(entityAction.id);
                 }
             });
             _.forEach(data.ents, function(edata) {
-                var entity = self.getEntity(this.ents, edata.id);
+                var entity = self.getEntity(self.ents, edata.id);
                 if (entity) {
                     if (edata.pos) {
                         entity.pos = self.pos(edata.pos);
@@ -1029,9 +1131,13 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
                     if (edata.vel) {
                         entity.vel = self.vel(edata.vel);
                     }
+                    //console.log("entity with id found, ", edata.id);
+                } else {
+                    //console.log("entity with id not found, ", edata.id);
                 }
             });
             this.tagUserid = data.tagUserid;
+
         } else {
 
                 //Cache the data from the server,
@@ -1113,6 +1219,13 @@ game_core.prototype.client_update = function() {
         //across frames using local input states we have stored.
     this.client_update_local_position();
 
+    _.forEach(this.explosions, function(expl) {
+        expl.timer = expl.timer - 0.015;
+    });
+    this.explosions = _.filter(this.explosions, function(expl) {
+        return expl.timer > 0;
+    });
+
     //Now they should have updated, we can draw the entity
     self.drawPlayerIndex = 0;
     _.forEach(this.players, function(player) {
@@ -1121,6 +1234,10 @@ game_core.prototype.client_update = function() {
 
     _.forEach(this.ents, function(entity) {
         self.drawEntity(entity);
+    });
+
+    _.forEach(this.explosions, function(expl) {
+        self.drawExplosion(expl);
     });
 
         //and these
@@ -1170,10 +1287,10 @@ game_core.prototype.client_create_ping_timer = function() {
 game_core.prototype.client_create_configuration = function() {
 
     this.show_help = false;             //Whether or not to draw the help text
-    this.naive_approach = false;        //Whether or not to use the naive approach
+    this.naive_approach = true;        //Whether or not to use the naive approach
     this.show_server_pos = false;       //Whether or not to show the server position
     this.show_dest_pos = false;         //Whether or not to show the interpolation goal
-    this.client_predict = true;         //Whether or not the client is predicting input
+    this.client_predict = false;         //Whether or not the client is predicting input
     this.input_seq = 0;                 //When predicting client inputs, we store the last input as a sequence number
     this.client_smoothing = true;       //Whether or not the client side prediction tries to smooth things out
     this.client_smooth = 25;            //amount of smoothing to apply to client update dest
@@ -1459,14 +1576,57 @@ game_core.prototype.getOpenGamesList = function() {
 
 game_core.prototype.drawEntity = function (entity) {
     if (this.ctx) {
-        this.ctx.fillStyle = '#fff';
+        if (entity.type === 'bullet') {
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillRect(entity.pos.x - 5, entity.pos.y - 5, 10, 10);
+        }
+        if (entity.type === 'asteroid') {
 
+            this.ctx.save();
+            var offset = entity.size.x;
+
+            this.ctx.translate(entity.pos.x, entity.pos.y);
+            this.ctx.rotate(entity.rot);
+            this.ctx.translate(-entity.size.x, -entity.size.x);
+
+            // this.ctx.translate(entity.pos.x - offset, entity.pos.y - offset);
+            this.ctx.scale(entity.size.x * 0.02, entity.size.x * 0.02);
+            this.ctx.fillStyle = '#cdf';
+            // this.ctx.fillStyle = '#f00';
+            this.ctx.beginPath();
+            this.ctx.moveTo(20, 20);
+            this.ctx.lineTo(60, 0);
+            this.ctx.lineTo(75, 25);
+            this.ctx.lineTo(95, 30);
+            this.ctx.lineTo(100, 50);
+            this.ctx.lineTo(90, 80);
+            this.ctx.lineTo(50, 90);
+            this.ctx.lineTo(40, 100);
+            this.ctx.lineTo(0, 60);
+            this.ctx.lineTo(20, 20);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.restore();
+
+        }
+    }
+};
+
+game_core.prototype.drawExplosion = function (expl) {
+    if (this.ctx) {
         this.ctx.save();
-        // this.ctx.translate(entity.pos.x, entity.pos.y);
-
-            //Draw a rectangle for us
-        this.ctx.fillRect(entity.pos.x - 5, entity.pos.y - 5, 10, 10);
-
+        
+        var timer = (0.5 - expl.timer) * 2 * 28 / expl.size.x;
+        var radius = expl.size.x + (expl.size.x * timer);
+        var alpha = 1.0 - timer;
+        var timer = ~~(timer * 255);
+        var g = (255 - timer);
+        var fillColor = 'rgba(255, ' + g + ', ' + ~~(g / 2) + ', '+ (alpha) + ')';
+        this.ctx.fillStyle = fillColor;
+        this.ctx.beginPath();
+        this.ctx.arc(expl.pos.x, expl.pos.y, radius, 0, 2 * Math.PI, false);
+        this.ctx.closePath(); 
+        this.ctx.fill();
         this.ctx.restore();
     }
 };
@@ -1485,22 +1645,13 @@ game_core.prototype.drawPlayer = function(player){
 
         this.ctx.rotate(player.rot);
 
-        this.ctx.translate(-player.size.hx, -player.size.hy);
+        this.ctx.translate(-player.size.x, -player.size.y);
         this.ctx.beginPath();
         this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(1.3 * player.size.x, player.size.hy);
-        this.ctx.lineTo(0, player.size.y);
+        this.ctx.lineTo(1.3 * player.size.x * 2, player.size.y);
+        this.ctx.lineTo(0, player.size.y * 2);
         this.ctx.fill();
-
-            //Draw a rectangle for us
-        //game.ctx.fillRect(-this.size.hx, -this.size.hy, this.size.x, this.size.y);
-
         this.ctx.restore();
-            //Draw a status update
-        // if (player.state !== 'local_pos(joined)' && player.state !== 'YOU local_pos(joined)') {
-        //     this.ctx.fillStyle = player.info_color;
-        //     this.ctx.fillText(player.state, player.pos.x+18, player.pos.y + 4);
-        // }
 
         this.ctx.fillStyle = player.color;
         this.ctx.font="14px Arial";
