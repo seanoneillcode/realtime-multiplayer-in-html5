@@ -78,7 +78,7 @@
         } else if(message_type == 'b') {    //Client changed their color!
             this.broadcastPlayerData(client, message_parts[1], message_parts[2]);
         } else if(message_type == 'c') {    //make a new game
-            this.makeGameAndJoinIt(client, message_parts[1], message_parts[2]);
+            this.makeGameAndJoinIt(client, message_parts);
         } else if(message_type == 'q') {    //make a new game
             this.removePlayerFromGame(client);
         } else if(message_type == 'j') {    //go into new game
@@ -153,8 +153,8 @@
         client.emit('ongamelist', openGames);
     };
 
-    game_server.makeGameAndJoinIt = function(client, name, numPlayers) {
-        this.createGame(client, name, numPlayers);
+    game_server.makeGameAndJoinIt = function(client, message_parts) {
+        this.createGame(client, message_parts[1], message_parts[2], message_parts[3]);
     };
 
     game_server.broadcastPlayerData = function(client, name, color) {
@@ -193,7 +193,7 @@
         return !isNaN(value) && (function(x) { return (x | 0) === x; })(value);
     };
 
-    game_server.createGame = function(client, gameName, numPlayers) {
+    game_server.createGame = function(client, gameName, numPlayers, numAsteroids) {
 
         var actualNumPlayers = parseFloat(numPlayers);
         if (!this.isInt(actualNumPlayers)) {
@@ -209,10 +209,11 @@
                 name: gameName,
                 players: gamePlayers,
                 maxNumPlayers: actualNumPlayers,
-                serverGamecore: undefined
+                serverGamecore: undefined,
+                numAsteroids: numAsteroids
             };
 
-        game.serverGamecore = new game_core(undefined, gamePlayers);
+        game.serverGamecore = new game_core(undefined, gamePlayers, undefined, numAsteroids);
         game.serverGamecore.update(new Date().getTime());
 
         client.game = game;
@@ -220,11 +221,11 @@
         this.games[game.id] = game;
         this.game_count++;
 
-        player.send('s.h.'+ String(game.serverGamecore.local_time).replace('.','-'));
-        console.log('server host at  ' + game.serverGamecore.local_time);
         this.log('player ' + player.userid + ' created a game with id ' + game.id);
         this.notifyLobbyListeners();
         //game.serverGamecore.firstPlayerStart();
+        game.serverGamecore.intializeGame();
+        game.serverGamecore.broadcastSnapshot();
     };
 
     game_server.notifyLobbyListeners = function() {
@@ -237,7 +238,7 @@
 
     game_server.startGame = function(game) {
         console.log("start, availgame players length ", game.players.length);
-        game.serverGamecore.intializeGame();
+        // game.serverGamecore.intializeGame();
         var self = this;
         _.forEach(game.players, function (player) {
             player.send('s.s.' + String(game.serverGamecore.local_time).replace('.','-'));
@@ -258,6 +259,7 @@
         console.log("join, availgame players length", game.players.length);
         console.log("availableGame.players.length ", game.players.length);
         console.log("this.maxNumPlayers ", game.maxNumPlayers);
+        game.serverGamecore.broadcastSnapshot();
         if (game.players.length === game.maxNumPlayers) {
             this.startGame(game);
         }

@@ -28,7 +28,7 @@ if( 'undefined' != typeof global ) {
     var _ = require('lodash');    
 }
 
-    var game_core = function(socket, players, keyboard) {
+    var game_core = function(socket, players, keyboard, numAsteroids) {
 
         this.isServer = players !== undefined;
 
@@ -57,7 +57,7 @@ if( 'undefined' != typeof global ) {
         this.bulletSpeed = 6;
         this.drawPlayerIndex = 0;
         this.explosions = [];
-        this.numAsteroids = 8;
+        this.numAsteroids = numAsteroids;
 
         if(!this.isServer) {
             
@@ -238,11 +238,25 @@ game_core.prototype.intializeGame = function () {
     //     player.pos = self.pos(self.getRandomPostion());
     // });
     
+    for (var i = 0; i < self.numAsteroids; i++) {
+        var pos = self.getRandomPostion();
+        var vel = self.rot_to_vec(self.randomInRange(0, 6));
+        var size = self.randomInRange(20, 40);
+        var newEntity = self.createEntity(0, pos, {x: 0, y: 0}, 'asteroid', {x: size, y: size});
+    }
+
     this.tagUserid = this.players[0].userid;
     console.log("tag User Id = " + this.tagUserid);
     this.tagChanged = true;
     this.server_update();
-    this.firstPlayerStart();
+    // this.firstPlayerStart();
+};
+
+game_core.prototype.broadcastSnapshot = function() {
+    var self = this;
+    _.forEach(self.ents, function(ent) {
+        self.newEnts.push(ent);
+    });
 };
 
 /*
@@ -737,14 +751,13 @@ game_core.prototype.createClientEntity = function(id, userid, type, size) {
 game_core.prototype.firstPlayerStart = function() {
     var self = this;
     window.setTimeout(function() {
-        for (var i = 0; i < self.numAsteroids; i++) {
-            var pos = self.getRandomPostion();
-            var vel = self.rot_to_vec(self.randomInRange(0, 6));
-            var size = self.randomInRange(20, 40);
-            var newEntity = self.createEntity(0, pos, {x: 0, y: 0}, 'asteroid', {x: size, y: size});
-        }
+        // for (var i = 0; i < self.numAsteroids; i++) {
+        //     var pos = self.getRandomPostion();
+        //     var vel = self.rot_to_vec(self.randomInRange(0, 6));
+        //     var size = self.randomInRange(20, 40);
+        //     var newEntity = self.createEntity(0, pos, {x: 0, y: 0}, 'asteroid', {x: size, y: size});
+        // }
     }, 500);
-    
     
     // this.server_update();
 };

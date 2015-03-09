@@ -15,6 +15,7 @@ angular.module('gameApp.lobby', ['ngRoute'])
     $scope.userid = currentGame.getUserId();
     $scope.gameName = "my game";
     $scope.gameNumPlayers = 2;
+    $scope.gameNumAsteroids = 2;
 
     $scope.socket.on('ongamelist', function (message) {
         $scope.$apply(function() {
@@ -30,7 +31,7 @@ angular.module('gameApp.lobby', ['ngRoute'])
     });
 
     $scope.createGame = function() {
-        $scope.socket.send('c.' + $scope.gameName + "." + $scope.gameNumPlayers);
+        $scope.socket.send('c.' + $scope.gameName + "." + $scope.gameNumPlayers + "." + $scope.gameNumAsteroids);
         $location.path('/gameplay');
     };
     
