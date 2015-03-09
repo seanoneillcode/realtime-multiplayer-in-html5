@@ -24,10 +24,13 @@ angular.module('gameApp.lobby', ['ngRoute'])
     });
 
     $scope.socket.on('onconnected', function(data) {
+        $scope.playerColor = localStorage.getItem('playerColor') || '#ffffff';
+        $scope.playerName = localStorage.getItem('playerName') || 'Anon';
         $scope.$apply(function() {
             $scope.userid = data.userid;
         });
         currentGame.setUserId(data.userid);
+        $scope.socket.send('d.' + $scope.playerName + "." + $scope.playerColor);
     });
 
     $scope.createGame = function() {
@@ -36,10 +39,6 @@ angular.module('gameApp.lobby', ['ngRoute'])
     };
     
     $scope.getGamesList = function() {
-        // if (currentGame.getUserId() === '') {
-            
-        // }
-
         $scope.socket.send('l');
     };
 

@@ -60,12 +60,6 @@ if( 'undefined' != typeof global ) {
         this.explosions = [];
         this.numAsteroids = numAsteroids;
 
-        if(!this.isServer) {
-            var gp = new gamePlayer();
-            this.players.push(gp);
-            this.playerself = gp;
-        }
-
             //Set up some physics integration values
         this._pdt = 0.0001;                 //The physics update delta time
         this._pdte = new Date().getTime();  //The physics update last delta time
@@ -83,6 +77,9 @@ if( 'undefined' != typeof global ) {
 
             //Client specific initialisation
         if(!this.isServer) {
+            var gp = new gamePlayer();
+            this.players.push(gp);
+            this.playerself = gp;
             
                 //Create a keyboard handler
             this.keyboard = keyboard;
@@ -102,8 +99,7 @@ if( 'undefined' != typeof global ) {
             this.client_create_ping_timer();
 
                 //Set their colors from the storage or locally
-            this.color = this.getRandomColor();//localStorage.getItem('color') || '#cc8822' ;
-            //localStorage.setItem('color', this.color);
+            this.color = this.getRandomColor();
             this.playerself.color = this.color;
 
             if(String(window.location).indexOf('debug') != -1) {
@@ -664,15 +660,14 @@ game_core.prototype.createEntity = function(userid, pos, vel, type, size) {
     return newEntity;
 };
 
-game_core.prototype.createClientEntity = function(id, userid, type, size) {
+game_core.prototype.createClientEntity = function(entityAction) {
     var index = _.find(this.ents, function(entity) {
-        return entity.id === id;
+        return entity.id === entityAction.id;
     });
     if (!index) {
-        var newEntity = new entity(id, userid, type, size);
+        var newEntity = new entity(entityAction.id, entityAction.userid, entityAction.type, entityAction.size, entityAction.pos);
         this.ents.push(newEntity);
     }
-    return newEntity;
 };
 
 game_core.prototype.firstPlayerStart = function() {
@@ -908,8 +903,7 @@ game_core.prototype.client_process_net_updates = function() {
     _.forEach(latest_server_data.entityActions, function (entityAction) {
         if (entityAction.action === "add") {
             console.log("add ", entityAction.type);
-            var entity = self.createClientEntity(entityAction.id, entityAction.userid, entityAction.type, entityAction.size);
-            entity.pos = self.pos(entityAction.pos);
+            self.createClientEntity(entityAction);
         }
         if (entityAction.action === "remove") {
             self.removeEntity(entityAction.id);
@@ -1051,8 +1045,7 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
             _.forEach(data.entityActions, function (entityAction) {
                 console.log("entity action caught, ", entityAction);
                 if (entityAction.action === "add") {
-                    var entity = self.createClientEntity(entityAction.id, entityAction.userid, entityAction.type, entityAction.size);
-                    entity.pos = self.pos(entityAction.pos);
+                    self.createClientEntity(entityAction);
                 }
                 if (entityAction.action === "remove") {
                     self.removeEntity(entityAction.id);

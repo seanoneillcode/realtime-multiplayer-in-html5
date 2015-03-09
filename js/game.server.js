@@ -75,20 +75,24 @@
             client.send('s.p.' + message_parts[1]);
         } else if(message_type == 'l') {
             this.sendOpenGameList(client);
-        } else if(message_type == 'b') {    //Client changed their color!
-            this.broadcastPlayerData(client, message_parts[1], message_parts[2]);
         } else if(message_type == 'c') {    //make a new game
             this.makeGameAndJoinIt(client, message_parts);
         } else if(message_type == 'q') {    //make a new game
             this.removePlayerFromGame(client);
         } else if(message_type == 'j') {    //go into new game
             this.getAndjoinGame(client, message_parts[1]);
-        } else if(message_type == 'b') {    //Client changed their color!
-            this.broadcastName(client, message_parts[1]);
+        } else if(message_type == 'd') {    //Client changed their color!
+            this.updateDetails(client, message_parts[1], message_parts[2]);
         } else if(message_type == 'f') {    //A client is asking for lag simulation
             this.fake_latency = parseFloat(message_parts[1]);
         }
 
+    };
+
+    game_server.updateDetails = function(client, name, color) {
+        console.log("updating " + name + " to use color " + color);
+        client.name = name;
+        client.color = color;
     };
 
     game_server.removePlayerFromGame = function(client) {
@@ -157,17 +161,11 @@
         this.createGame(client, message_parts[1], message_parts[2], message_parts[3]);
     };
 
-    game_server.broadcastPlayerData = function(client, name, color) {
-        if (client && client.game && client.game.serverGamecore) {
-            var player = client.game.serverGamecore.get_player(client.game.serverGamecore.players, client.userid);
-            if (player) {
-                player.name = name;
-                player.color = color;
-            }
-            _.forEach(client.game.players, function (player) {
-                player.send('s.b.' + client.userid + '.' + name + '.' + color);
-            });
-        }
+    game_server.sendPlayerData = function(targetPlayer, game) {
+        var self = this;
+        _.forEach(game.players, function(player) {
+            player.send('s.b.' + targetPlayer.userid + '.' + targetPlayer.name + '.' + targetPlayer.color);
+        });
     };
 
     game_server.onInput = function(client, parts) {
@@ -223,9 +221,9 @@
 
         this.log('player ' + player.userid + ' created a game with id ' + game.id);
         this.notifyLobbyListeners();
-        //game.serverGamecore.firstPlayerStart();
         game.serverGamecore.intializeGame();
         game.serverGamecore.broadcastSnapshot();
+        this.sendPlayerData(player, game);
     };
 
     game_server.notifyLobbyListeners = function() {
@@ -249,12 +247,14 @@
         var p = new gamePlayer(client);
         game.players.push(p);
         client.game = game;
+        var self = this;
         _.forEach(game.players, function(player) {
             if (player.userid !== p.userid) {
                 player.send('s.a.' + p.userid + '.' + p.name);
                 p.send('s.a.' + player.userid + '.' + player.name);
             }
         });
+        self.sendPlayerData(p, game);
         console.log("join, availgame players length", game.players.length);
         console.log("availableGame.players.length ", game.players.length);
         console.log("this.maxNumPlayers ", game.maxNumPlayers);

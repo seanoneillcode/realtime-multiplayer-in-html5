@@ -1,7 +1,7 @@
 
 
-entity = function(id, userid, type, size) {
-    this.pos = {
+entity = function(id, userid, type, size, pos) {
+    this.pos = pos ? pos : {
         x: 0,
         y: 0
     };
