@@ -41,6 +41,7 @@ if( 'undefined' != typeof global ) {
         this.tagCollision = false;
         this.tagUserid = null;
         this.tagChanged = false;
+        this.physicsUpdateStep = 0.015;
 
         // how much drag space has. reduces the ships speed
         this.dampening_amount = 0.02;
@@ -190,7 +191,7 @@ game_core.prototype.stop_update = function() {  window.cancelAnimationFrame( thi
     //Simple linear interpolation
 game_core.prototype.lerp = function(p, n, t) { var _t = Number(t); _t = (Math.max(0, Math.min(1, _t))).fixed(); return (p + _t * (n - p)).fixed(); };
     //Simple linear interpolation between 2 vectors
-game_core.prototype.v_lerp = function(v,tv,t) { return { x: this.lerp(v.x, tv.x, t), y:this.lerp(v.y, tv.y, t) }; };
+game_core.prototype.v_lerp = function(v,tv,t) { return { x: this.lerp(v.x, tv.x, t), y: this.lerp(v.y, tv.y, t) }; };
     
 game_core.prototype.randomInRange = function(min, max) {
     return Math.random() * (max - min) + min;
@@ -210,9 +211,7 @@ game_core.prototype.getRandomPostion = function() {
     These functions are shared between client and server, and are generic
     for the game state. The client functions are client_* and server functions
     are server_* so these have no prefix.
-
 */
-
 game_core.prototype.update = function(t) {
     
         //Work out the delta time
@@ -234,9 +233,6 @@ game_core.prototype.update = function(t) {
 
 game_core.prototype.intializeGame = function () {
     var self = this;
-    // _.forEach(this.players, function(player) {
-    //     player.pos = self.pos(self.getRandomPostion());
-    // });
     
     for (var i = 0; i < self.numAsteroids; i++) {
         var pos = self.getRandomPostion();
@@ -244,12 +240,9 @@ game_core.prototype.intializeGame = function () {
         var size = self.randomInRange(20, 40);
         var newEntity = self.createEntity(0, pos, {x: 0, y: 0}, 'asteroid', {x: size, y: size});
     }
-
     this.tagUserid = this.players[0].userid;
-    console.log("tag User Id = " + this.tagUserid);
     this.tagChanged = true;
     this.server_update();
-    // this.firstPlayerStart();
 };
 
 game_core.prototype.broadcastSnapshot = function() {
@@ -272,30 +265,24 @@ game_core.prototype.check_boundry_collision = function(gamePlayer) {
         y_max: this.world.height - gamePlayer.size.hy
     };
 
-        //Left wall.
     if(gamePlayer.pos.x <= pos_limits.x_min) {
         gamePlayer.pos.x = pos_limits.x_min;
     }
 
-        //Right wall
     if(gamePlayer.pos.x >= pos_limits.x_max ) {
         gamePlayer.pos.x = pos_limits.x_max;
     }
     
-        //Roof wall.
     if(gamePlayer.pos.y <= pos_limits.y_min) {
         gamePlayer.pos.y = pos_limits.y_min;
     }
 
-        //Floor wall
     if(gamePlayer.pos.y >= pos_limits.y_max ) {
         gamePlayer.pos.y = pos_limits.y_max;
     }
 
-        //Fixed point helps be more deterministic
     gamePlayer.pos.x = gamePlayer.pos.x.fixed(4);
     gamePlayer.pos.y = gamePlayer.pos.y.fixed(4);
-    
 };
 
 game_core.prototype.entityCollision = function(entity) {
@@ -307,7 +294,6 @@ game_core.prototype.entityCollision = function(entity) {
         y_max: this.world.height - 10
     };
 
-        //Left wall.
     if(entity.pos.x <= pos_limits.x_min) {
         entity.vel.x = entity.vel.x * -1;
         if (entity.type === 'bullet') {
@@ -315,7 +301,6 @@ game_core.prototype.entityCollision = function(entity) {
         }
     }
 
-        //Right wall
     if(entity.pos.x >= pos_limits.x_max ) {
         entity.vel.x = entity.vel.x * -1;
         if (entity.type === 'bullet') {
@@ -323,7 +308,6 @@ game_core.prototype.entityCollision = function(entity) {
         }
     }
     
-        //Roof wall.
     if(entity.pos.y <= pos_limits.y_min) {
         entity.vel.y = entity.vel.y * -1;
         if (entity.type === 'bullet') {
@@ -331,7 +315,6 @@ game_core.prototype.entityCollision = function(entity) {
         }
     }
 
-        //Floor wall
     if(entity.pos.y >= pos_limits.y_max ) {
         entity.vel.y = entity.vel.y * -1;
         if (entity.type === 'bullet') {
@@ -368,7 +351,6 @@ game_core.prototype.entityCollision = function(entity) {
         }
     });
 
-        //Fixed point helps be more deterministic
     try {
         entity.pos.x = entity.pos.x.fixed(4);
         entity.pos.y = entity.pos.y.fixed(4);
@@ -380,7 +362,6 @@ game_core.prototype.entityCollision = function(entity) {
         this.deadEnts.push(entity);
         this.removeEntity(entity.id);
     }
-    
 };
 
 game_core.prototype.removeEntity = function(id) {
@@ -433,37 +414,28 @@ game_core.prototype.process_input = function( player ) {
                 if(key == 's') {
                     space += 1;
                 }
-            } //for all input values
-
-        } //for each input command
-    } //if we have inputs
-
-        //we have a direction vector now, so apply the same physics as the client
+            }
+        }
+    }
     var resulting_input = {
         x: x_dir,
         y: y_dir,
         s: space
     };
     if(player.inputs.length) {
-        //we can now clear the array since these have been processed
-
         player.last_input_time = player.inputs[ic-1].time;
         player.last_input_seq = player.inputs[ic-1].seq;
     }
 
-        //give it back
     return resulting_input;
-
 };
 
 game_core.prototype.physics_movement_vector_from_direction = function(direction) {
 
-    //Must be fixed step, at physics sync speed.
     return {
-        x : (direction.x * (this.playerspeed * 0.015)).fixed(3),
-        y : (direction.y * (this.playerspeed * 0.015)).fixed(3)
+        x : (direction.x * (this.playerspeed * this.physicsUpdateStep)).fixed(3),
+        y : (direction.y * (this.playerspeed * this.physicsUpdateStep)).fixed(3)
     };
-
 };
 
 game_core.prototype.update_physics = function() {
@@ -599,13 +571,12 @@ game_core.prototype.processShootInput = function(input, player) {
     if (input.s > 0) {
         if (player.shootCooldownTimer <= 0) {
             player.shootCooldownTimer = this.shootCooldown;
-            console.log("player succesfully shot");
             var newVel = this.rot_to_vec(player.rot);
             this.createBullet(player.userid, player.pos, newVel);
         }
     }
     if (player.shootCooldownTimer > 0) {
-        player.shootCooldownTimer = player.shootCooldownTimer - 0.015;
+        player.shootCooldownTimer = player.shootCooldownTimer - this.physicsUpdateStep;
     }
 };
 
@@ -1144,9 +1115,6 @@ game_core.prototype.client_onserverupdate_recieved = function(data){
                     if (edata.vel) {
                         entity.vel = self.vel(edata.vel);
                     }
-                    //console.log("entity with id found, ", edata.id);
-                } else {
-                    //console.log("entity with id not found, ", edata.id);
                 }
             });
             this.tagUserid = data.tagUserid;
@@ -1233,13 +1201,12 @@ game_core.prototype.client_update = function() {
     this.client_update_local_position();
 
     _.forEach(this.explosions, function(expl) {
-        expl.timer = expl.timer - 0.015;
+        expl.timer = expl.timer - physicsUpdateStep;
     });
     this.explosions = _.filter(this.explosions, function(expl) {
         return expl.timer > 0;
     });
 
-    //Now they should have updated, we can draw the entity
     self.drawPlayerIndex = 0;
     _.forEach(this.players, function(player) {
         self.drawPlayer(player);
@@ -1252,17 +1219,6 @@ game_core.prototype.client_update = function() {
     _.forEach(this.explosions, function(expl) {
         self.drawExplosion(expl);
     });
-
-        //and these
-    if(this.show_dest_pos && !this.naive_approach) {
-        //this.ghosts.pos_other.draw();
-    }
-
-        //and lastly draw these
-    if(this.show_server_pos && !this.naive_approach) {
-        // this.ghosts.server_pos_self.draw();
-        // this.ghosts.server_pos_other.draw();
-    }
 
     //Work out the fps average
     this.client_refresh_fps();

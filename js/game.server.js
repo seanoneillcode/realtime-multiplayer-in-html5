@@ -238,7 +238,6 @@
 
     game_server.startGame = function(game) {
         console.log("start, availgame players length ", game.players.length);
-        // game.serverGamecore.intializeGame();
         var self = this;
         _.forEach(game.players, function (player) {
             player.send('s.s.' + String(game.serverGamecore.local_time).replace('.','-'));
