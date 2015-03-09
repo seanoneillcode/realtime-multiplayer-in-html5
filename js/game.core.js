@@ -61,53 +61,9 @@ if( 'undefined' != typeof global ) {
         this.numAsteroids = numAsteroids;
 
         if(!this.isServer) {
-            
             var gp = new gamePlayer();
             this.players.push(gp);
             this.playerself = gp;
-
-                //Debugging ghosts, to help visualise things
-            this.ghosts = {
-                    //Our ghost position on the server
-                server_pos_self : new gamePlayer(),
-                    //The other players server position as we receive it
-                server_pos_other : new gamePlayer(),
-                    //The other players ghost destination position (the lerp)
-                pos_other : new gamePlayer(),
-                server_vel_self : new gamePlayer(),
-                    //The other players server position as we receive it
-                server_vel_other : new gamePlayer(),
-                    //The other players ghost destination position (the lerp)
-                vel_other : new gamePlayer()
-            };
-
-            this.ghosts.pos_other.state = 'dest_pos';
-
-            this.ghosts.pos_other.info_color = 'rgba(255,255,255,0.1)';
-
-            this.ghosts.server_pos_self.info_color = 'rgba(255,255,255,0.2)';
-            this.ghosts.server_pos_other.info_color = 'rgba(255,255,255,0.2)';
-
-            this.ghosts.server_pos_self.state = 'server_pos';
-            this.ghosts.server_pos_other.state = 'server_pos';
-
-            this.ghosts.server_pos_self.pos = { x:20, y:20 };
-            this.ghosts.pos_other.pos = { x:500, y:200 };
-            this.ghosts.server_pos_other.pos = { x:500, y:200 };
-
-            this.ghosts.vel_other.state = 'dest_vel';
-
-            this.ghosts.vel_other.info_color = 'rgba(255,255,255,0.1)';
-
-            this.ghosts.server_vel_self.info_color = 'rgba(255,255,255,0.2)';
-            this.ghosts.server_vel_other.info_color = 'rgba(255,255,255,0.2)';
-
-            this.ghosts.server_vel_self.state = 'server_vel';
-            this.ghosts.server_vel_other.state = 'server_vel';
-
-            this.ghosts.server_vel_self.vel = { x:20, y:20 };
-            this.ghosts.vel_other.vel = { x:500, y:200 };
-            this.ghosts.server_vel_other.vel = { x:500, y:200 };
         }
 
             //Set up some physics integration values
@@ -819,10 +775,6 @@ game_core.prototype.client_process_net_prediction_correction = function() {
     var my_server_last_input_seq;
 
     var self_player = _.find(latest_server_data.players, {'userid': this.playerself.userid});
-    
-    // Update the debug server position block
-    // this.ghosts.server_pos_self.pos = this.pos(my_server_pos);
-    // this.ghosts.server_pos_self.vel = this.vel(my_server_vel);
 
     //here we handle our local input prediction ,
     //by correcting it with the server and reconciling its differences
@@ -1201,7 +1153,7 @@ game_core.prototype.client_update = function() {
     this.client_update_local_position();
 
     _.forEach(this.explosions, function(expl) {
-        expl.timer = expl.timer - physicsUpdateStep;
+        expl.timer = expl.timer - self.physicsUpdateStep;
     });
     this.explosions = _.filter(this.explosions, function(expl) {
         return expl.timer > 0;
