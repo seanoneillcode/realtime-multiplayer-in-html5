@@ -1,11 +1,5 @@
-Realtime Multiplayer In HTML5
-=============================
-
-Read the article here : 
-http://buildnewgames.com/real-time-multiplayer/
-
-View the demo here :
-http://underscorediscovery.aws.af.cm/?debug
+Realtime Multiplayer Asteroids In HTML5
+=======================================
 
 An example using node.js, socket.io and HTML5 Canvas to explain and demonstrate realtime multiplayer games in the browser.
 
